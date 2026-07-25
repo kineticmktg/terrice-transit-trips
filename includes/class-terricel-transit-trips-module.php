@@ -603,17 +603,23 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
 
             if (!isset($sections[$section_label])) {
                 $sections[$section_label] = array(
-                    'title' => $section_label,
-                    'rows'  => array(),
+                    'title'                    => $section_label,
+                    'rows'                     => array(),
+                    'total_actual_mileage'     => 0.0,
+                    'has_total_actual_mileage' => false,
                 );
             }
 
             $assignments = $this->get_trip_assignments($trip_id);
             $actuals = $this->get_trip_actuals($trip_id);
             $total_actual_mileage = $this->get_trip_total_actual_mileage($assignments, $actuals);
+            if (null !== $total_actual_mileage) {
+                $sections[$section_label]['total_actual_mileage'] += $total_actual_mileage;
+                $sections[$section_label]['has_total_actual_mileage'] = true;
+            }
 
             $sections[$section_label]['rows'][] = array(
-                'pickup'      => $this->format_trip_pickup($trip_id),
+                'pickup'      => $this->format_trip_report_pickup($trip_id),
                 'school'      => $school_label,
                 'advisor'     => $group_id > 0 ? $this->get_group_advisor_name($group_id) : __('Not set', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
                 'destination' => $this->get_trip_destination_label($trip_id),
@@ -632,16 +638,25 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         }
 
         ksort($sections, SORT_NATURAL | SORT_FLAG_CASE);
+        foreach ($sections as &$section) {
+            $section['summary_right'] = sprintf(
+                /* translators: %s: mileage label. */
+                __('Total Mileage: %s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+                $this->format_report_mileage($section['has_total_actual_mileage'] ? $section['total_actual_mileage'] : null)
+            );
+            unset($section['total_actual_mileage'], $section['has_total_actual_mileage']);
+        }
+        unset($section);
 
         return array(
             'title'    => __('Trips by School', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
             'filename' => 'trips-by-school',
             'columns'  => array(
-                array('key' => 'pickup', 'label' => __('Pickup', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 74),
+                array('key' => 'pickup', 'label' => __('Pickup', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 96),
                 array('key' => 'school', 'label' => __('School', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 58),
                 array('key' => 'advisor', 'label' => __('Advisor', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 68),
-                array('key' => 'destination', 'label' => __('Destination', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 210),
-                array('key' => 'actual_mileage', 'label' => __('Total Actual Mileage', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 102),
+                array('key' => 'destination', 'label' => __('Destination', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 180),
+                array('key' => 'actual_mileage', 'label' => __('Total Actual Mileage', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 110),
             ),
             'sections' => array_values($sections),
         );
@@ -1173,6 +1188,15 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         $date = get_post_meta($trip_id, '_terricel_trip_pickup_date', true);
         $time = get_post_meta($trip_id, '_terricel_trip_pickup_time', true);
         $date_label = $date ? date_i18n(get_option('date_format'), strtotime($date)) : __('Date not set', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN);
+        $time_label = $time ? date_i18n(get_option('time_format'), strtotime($time)) : __('Time not set', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN);
+
+        return $date_label . ' ' . $time_label;
+    }
+
+    private function format_trip_report_pickup($trip_id) {
+        $date = get_post_meta($trip_id, '_terricel_trip_pickup_date', true);
+        $time = get_post_meta($trip_id, '_terricel_trip_pickup_time', true);
+        $date_label = $date ? strtoupper(date_i18n('M j, Y', strtotime($date))) : __('Date not set', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN);
         $time_label = $time ? date_i18n(get_option('time_format'), strtotime($time)) : __('Time not set', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN);
 
         return $date_label . ' ' . $time_label;
