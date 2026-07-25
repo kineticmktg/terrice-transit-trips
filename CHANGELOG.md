@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.28 - 2026-07-25
+
+- Added the exact estimate origin, destination, and matching Google Maps directions link to the Google Route Options diagnostic panel.
+
 ## 0.1.27 - 2026-07-25
 
 - Removed the manual Google estimate refresh control and visible status message from the Trip editor.
