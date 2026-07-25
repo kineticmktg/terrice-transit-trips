@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.24 - 2026-07-25
+
+- Forced auto-estimate refreshes to overwrite mileage and travel time with rounded values on address, location, and school changes.
+- Switched trip route estimates to Google's optimistic traffic model when choosing the fastest route.
+
 ## 0.1.23 - 2026-07-25
 
 - Restored debounced auto-refresh of mileage and travel-time estimates while destination addresses are edited manually.
