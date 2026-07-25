@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.10 - 2026-07-25
+
+- Added driver notifications when a driver is removed or swapped off a trip assignment.
+
 ## 0.2.9 - 2026-07-25
 
 - Connected Trips by School reporting to the core report availability checks so trip school and group filters only show options with trips in the selected date range and PDF creation is disabled when no trips match.

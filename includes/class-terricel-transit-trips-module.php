@@ -1013,18 +1013,38 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
     }
 
     private function maybe_queue_driver_assignment_notifications($trip_id, $old_assignments, $new_assignments) {
-        $old_driver_ids = array_filter(array_map('absint', wp_list_pluck($old_assignments, 'driver_id')));
-        foreach ($new_assignments as $assignment) {
-            $driver_id = absint($assignment['driver_id']);
-            if ($driver_id < 1 || in_array($driver_id, $old_driver_ids, true)) {
-                continue;
-            }
+        $old_driver_ids = $this->get_assignment_driver_ids($old_assignments);
+        $new_driver_ids = $this->get_assignment_driver_ids($new_assignments);
 
+        foreach (array_diff($new_driver_ids, $old_driver_ids) as $driver_id) {
             $user_id = (int) get_post_meta($driver_id, '_terricel_driver_user_id', true);
             if ($user_id > 0) {
                 $this->queue_user_notification($user_id, 'trip_driver_assigned', __('New Trip Assignment', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_trip_notice_message($trip_id), $this->get_driver_dashboard_url());
             }
         }
+
+        foreach (array_diff($old_driver_ids, $new_driver_ids) as $driver_id) {
+            $user_id = (int) get_post_meta($driver_id, '_terricel_driver_user_id', true);
+            if ($user_id > 0) {
+                $this->queue_user_notification($user_id, 'trip_driver_unassigned', __('Trip Assignment Removed', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_trip_unassignment_notice_message($trip_id), $this->get_driver_dashboard_url());
+            }
+        }
+    }
+
+    private function get_assignment_driver_ids($assignments) {
+        $ids = array();
+        foreach ((array) $assignments as $assignment) {
+            if (!is_array($assignment)) {
+                continue;
+            }
+
+            $driver_id = absint($assignment['driver_id'] ?? 0);
+            if ($driver_id > 0) {
+                $ids[] = $driver_id;
+            }
+        }
+
+        return array_values(array_unique($ids));
     }
 
     private function queue_operations_notification($trip_id, $event_key, $subject, $message) {
@@ -1333,6 +1353,16 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
     private function format_trip_notice_message($trip_id) {
         return sprintf(
             __('%1$s pickup for %2$s at %3$s. Destination: %4$s.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+            get_the_title($trip_id),
+            $this->get_school_label((int) get_post_meta($trip_id, '_terricel_trip_school_id', true)),
+            $this->format_trip_pickup($trip_id),
+            get_post_meta($trip_id, '_terricel_trip_location_name', true)
+        );
+    }
+
+    private function format_trip_unassignment_notice_message($trip_id) {
+        return sprintf(
+            __('You have been removed from %1$s pickup for %2$s at %3$s. Destination: %4$s.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
             get_the_title($trip_id),
             $this->get_school_label((int) get_post_meta($trip_id, '_terricel_trip_school_id', true)),
             $this->format_trip_pickup($trip_id),
