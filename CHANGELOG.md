@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.5 - 2026-07-24
+
+- Added a default Today+ view for the Trips admin list so upcoming trips are shown by default.
+- Added an All view for Trips so past trips remain accessible.
+
 ## 0.1.4 - 2026-07-24
 
 - Removed the editable Google API restricted IP field from Integrations settings.

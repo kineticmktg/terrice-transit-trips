@@ -39,6 +39,8 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             add_action('save_post_' . Terricel_Logistics_Shared_Data::BUS_POST_TYPE, array($this, 'save_bus_trip_meta'), 20);
             add_filter('manage_' . self::TRIP_POST_TYPE . '_posts_columns', array($this, 'trip_columns'));
             add_action('manage_' . self::TRIP_POST_TYPE . '_posts_custom_column', array($this, 'render_trip_column'), 10, 2);
+            add_filter('views_edit-' . self::TRIP_POST_TYPE, array($this, 'trip_list_views'));
+            add_action('pre_get_posts', array($this, 'filter_trip_admin_list'));
             add_filter('manage_' . self::GROUP_POST_TYPE . '_posts_columns', array($this, 'group_columns'));
             add_action('manage_' . self::GROUP_POST_TYPE . '_posts_custom_column', array($this, 'render_group_column'), 10, 2);
             add_action('admin_notices', array($this, 'render_admin_notices'));
@@ -760,6 +762,60 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         }
     }
 
+    public function trip_list_views($views) {
+        $current_view = isset($_GET['terricel_trip_view']) ? sanitize_key(wp_unslash($_GET['terricel_trip_view'])) : 'today_plus';
+        $base_url = admin_url('edit.php?post_type=' . self::TRIP_POST_TYPE);
+        $custom_views = array(
+            'today_plus' => sprintf(
+                '<a href="%1$s"%2$s>%3$s <span class="count">(%4$s)</span></a>',
+                esc_url($base_url),
+                'today_plus' === $current_view ? ' class="current" aria-current="page"' : '',
+                esc_html__('Today+', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+                esc_html(number_format_i18n($this->get_trip_list_count('today_plus')))
+            ),
+            'all' => sprintf(
+                '<a href="%1$s"%2$s>%3$s <span class="count">(%4$s)</span></a>',
+                esc_url(add_query_arg('terricel_trip_view', 'all', $base_url)),
+                'all' === $current_view ? ' class="current" aria-current="page"' : '',
+                esc_html__('All', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+                esc_html(number_format_i18n($this->get_trip_list_count('all')))
+            ),
+        );
+
+        unset($views['all']);
+
+        return array_merge($custom_views, $views);
+    }
+
+    public function filter_trip_admin_list($query) {
+        if (!is_admin() || !$query->is_main_query()) {
+            return;
+        }
+
+        $post_type = $query->get('post_type');
+        if (self::TRIP_POST_TYPE !== $post_type) {
+            return;
+        }
+
+        $current_view = isset($_GET['terricel_trip_view']) ? sanitize_key(wp_unslash($_GET['terricel_trip_view'])) : 'today_plus';
+        if ('all' !== $current_view) {
+            $meta_query = (array) $query->get('meta_query');
+            $meta_query[] = array(
+                'key'     => '_terricel_trip_pickup_date',
+                'value'   => current_time('Y-m-d'),
+                'compare' => '>=',
+                'type'    => 'DATE',
+            );
+            $query->set('meta_query', $meta_query);
+        }
+
+        if (!$query->get('orderby')) {
+            $query->set('meta_key', '_terricel_trip_pickup_date');
+            $query->set('orderby', 'meta_value');
+            $query->set('order', 'ASC');
+        }
+    }
+
     public function group_columns($columns) {
         return $this->insert_columns($columns, array('terricel_school' => __('School', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)));
     }
@@ -868,6 +924,30 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
 
     private function get_posts_for_select($post_type) {
         return get_posts(array('post_type' => $post_type, 'post_status' => 'publish', 'posts_per_page' => 500, 'orderby' => 'title', 'order' => 'ASC'));
+    }
+
+    private function get_trip_list_count($view) {
+        $args = array(
+            'post_type'      => self::TRIP_POST_TYPE,
+            'post_status'    => array('publish', 'draft', 'pending', 'future', 'private'),
+            'posts_per_page' => 1,
+            'fields'         => 'ids',
+        );
+
+        if ('today_plus' === $view) {
+            $args['meta_query'] = array(
+                array(
+                    'key'     => '_terricel_trip_pickup_date',
+                    'value'   => current_time('Y-m-d'),
+                    'compare' => '>=',
+                    'type'    => 'DATE',
+                ),
+            );
+        }
+
+        $query = new WP_Query($args);
+
+        return (int) $query->found_posts;
     }
 
     private function get_groups_for_school($school_id) {
