@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.7 - 2026-07-25
+
+- Simplified the Trips by School PDF columns to Pickup, School, Advisor, Destination, and Total Actual Mileage.
+- Added one bus assignment mileage detail row under each trip using pre-trip and post-trip actual mileage.
+
 ## 0.2.6 - 2026-07-25
 
 - Added a Trips by School PDF report type to core Reporting.

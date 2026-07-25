@@ -608,19 +608,29 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
                 );
             }
 
-            $mileage = get_post_meta($trip_id, '_terricel_trip_estimated_mileage', true);
-            $assignment_text = str_replace('</div><div>', '; ', $this->format_trip_assignment_summary($trip_id));
-            $assignment_text = trim(preg_replace('/\s+/', ' ', wp_strip_all_tags($assignment_text)));
+            $assignments = $this->get_trip_assignments($trip_id);
+            $actuals = $this->get_trip_actuals($trip_id);
+            $total_actual_mileage = $this->get_trip_total_actual_mileage($assignments, $actuals);
 
             $sections[$section_label]['rows'][] = array(
                 'pickup'      => $this->format_trip_pickup($trip_id),
-                'return'      => $this->format_trip_return($trip_id),
                 'school'      => $school_label,
                 'advisor'     => $group_id > 0 ? $this->get_group_advisor_name($group_id) : __('Not set', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
                 'destination' => $this->get_trip_destination_label($trip_id),
-                'assignments' => $assignment_text,
-                'mileage'     => '' !== (string) $mileage ? sprintf(__('%s mi', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), (string) $mileage) : __('Not set', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+                'actual_mileage' => $this->format_report_mileage($total_actual_mileage),
             );
+
+            foreach ($this->get_trip_report_assignment_rows($assignments, $actuals) as $assignment_row) {
+                $sections[$section_label]['rows'][] = array_merge(
+                    array(
+                        'pickup'      => '',
+                        'school'      => '',
+                        'advisor'     => '',
+                        'destination' => '',
+                    ),
+                    $assignment_row
+                );
+            }
         }
 
         ksort($sections, SORT_NATURAL | SORT_FLAG_CASE);
@@ -638,16 +648,89 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             'title'    => __('Trips by School', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
             'filename' => 'trips-by-school',
             'columns'  => array(
-                array('key' => 'pickup', 'label' => __('Pickup', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 70),
-                array('key' => 'return', 'label' => __('Return', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 70),
-                array('key' => 'school', 'label' => __('School', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 55),
-                array('key' => 'advisor', 'label' => __('Advisor', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 65),
-                array('key' => 'destination', 'label' => __('Destination', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 112),
-                array('key' => 'assignments', 'label' => __('Assignments', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 88),
-                array('key' => 'mileage', 'label' => __('Est. Miles', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 52),
+                array('key' => 'pickup', 'label' => __('Pickup', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 74),
+                array('key' => 'school', 'label' => __('School', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 58),
+                array('key' => 'advisor', 'label' => __('Advisor', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 68),
+                array('key' => 'destination', 'label' => __('Destination', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 210),
+                array('key' => 'actual_mileage', 'label' => __('Total Actual Mileage', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 102),
             ),
             'sections' => array_values($sections),
         );
+    }
+
+    private function get_trip_report_assignment_rows($assignments, $actuals) {
+        $rows = array();
+        $slot_count = max(count($assignments), count($actuals));
+
+        for ($i = 0; $i < $slot_count; $i++) {
+            $assignment = isset($assignments[$i]) && is_array($assignments[$i]) ? $assignments[$i] : array();
+            $actual = isset($actuals[$i]) && is_array($actuals[$i]) ? $actuals[$i] : array();
+            $bus_id = absint($assignment['bus_id'] ?? 0);
+            $driver_id = absint($assignment['driver_id'] ?? 0);
+            $pre_mileage = $this->get_actual_mileage_value($actual, 'pre_trip_mileage');
+            $post_mileage = $this->get_actual_mileage_value($actual, 'post_trip_mileage');
+            $total_mileage = $this->calculate_actual_mileage_total($pre_mileage, $post_mileage);
+
+            $rows[] = array(
+                'destination' => sprintf(
+                    /* translators: 1: bus, 2: driver, 3: pre-trip mileage, 4: post-trip mileage. */
+                    __('%1$s | %2$s | Pre-trip: %3$s | Post-trip: %4$s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+                    $bus_id > 0 ? get_the_title($bus_id) : __('No bus', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+                    $driver_id > 0 ? get_the_title($driver_id) : __('Vacant', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+                    $this->format_report_mileage($pre_mileage, false),
+                    $this->format_report_mileage($post_mileage, false)
+                ),
+                'actual_mileage' => $this->format_report_mileage($total_mileage),
+            );
+        }
+
+        return $rows;
+    }
+
+    private function get_trip_total_actual_mileage($assignments, $actuals) {
+        $total = 0.0;
+        $has_total = false;
+        $slot_count = max(count($assignments), count($actuals));
+
+        for ($i = 0; $i < $slot_count; $i++) {
+            $actual = isset($actuals[$i]) && is_array($actuals[$i]) ? $actuals[$i] : array();
+            $slot_total = $this->calculate_actual_mileage_total(
+                $this->get_actual_mileage_value($actual, 'pre_trip_mileage'),
+                $this->get_actual_mileage_value($actual, 'post_trip_mileage')
+            );
+
+            if (null !== $slot_total) {
+                $total += $slot_total;
+                $has_total = true;
+            }
+        }
+
+        return $has_total ? $total : null;
+    }
+
+    private function get_actual_mileage_value($actual, $key) {
+        if (!is_array($actual) || !isset($actual[$key]) || '' === (string) $actual[$key]) {
+            return null;
+        }
+
+        return (float) $actual[$key];
+    }
+
+    private function calculate_actual_mileage_total($pre_mileage, $post_mileage) {
+        if (null === $pre_mileage || null === $post_mileage) {
+            return null;
+        }
+
+        return max(0, (float) $post_mileage - (float) $pre_mileage);
+    }
+
+    private function format_report_mileage($mileage, $include_unit = true) {
+        if (null === $mileage || '' === (string) $mileage) {
+            return __('Not set', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN);
+        }
+
+        $value = rtrim(rtrim(number_format_i18n((float) $mileage, 1), '0'), '.');
+        return $include_unit ? sprintf(__('%s mi', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $value) : $value;
     }
 
     private function get_trip_report_schools_for_range($start_date, $end_date) {
