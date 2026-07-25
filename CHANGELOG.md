@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.14 - 2026-07-25
+
+- Refined Trips Smart Monitor typography by restoring the trip destination size while enlarging day counts, empty messages, school/group details, and assignment rows.
+
 ## 0.2.13 - 2026-07-25
 
 - Enlarged Trips Smart Monitor typography for better readability on large TV displays across a room.
