@@ -1,12 +1,17 @@
 # Changelog
 
+## 0.1.18 - 2026-07-25
+
+- Removed the manual draft suffix from Trip titles so WordPress owns draft labeling.
+- Switched destination lookup suggestions from Places Autocomplete to Places Text Search.
+
 ## 0.1.17 - 2026-07-25
 
 - Fixed Trip Save Draft being blocked by hidden inline School Group required fields.
 
 ## 0.1.16 - 2026-07-25
 
-- Updated draft trip titles to use available trip fields and end with "- DRAFT".
+- Updated draft trip titles to use available trip fields.
 
 ## 0.1.15 - 2026-07-25
 

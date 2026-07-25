@@ -1318,52 +1318,7 @@ JS;
             wp_send_json_error(array('message' => __('Add a Google Maps API key with Places API enabled to use address lookup.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)), 400);
         }
 
-        $response = wp_remote_post(
-            'https://places.googleapis.com/v1/places:autocomplete',
-            array(
-                'timeout' => 10,
-                'headers' => array(
-                    'Content-Type'   => 'application/json',
-                    'X-Goog-Api-Key' => $api_key,
-                ),
-                'body'    => wp_json_encode(
-                    array(
-                        'input'                   => $input,
-                        'includeQueryPredictions' => false,
-                        'languageCode'            => 'en',
-                        'regionCode'              => 'US',
-                    )
-                ),
-            )
-        );
-
-        if (is_wp_error($response)) {
-            wp_send_json_error(array('message' => $response->get_error_message()), 500);
-        }
-
-        $body = json_decode(wp_remote_retrieve_body($response), true);
-        if (!empty($body['error']['message'])) {
-            wp_send_json_error(array('message' => sanitize_text_field($body['error']['message'])), 400);
-        }
-
-        $suggestions = array();
-        foreach (($body['suggestions'] ?? array()) as $suggestion) {
-            $place = $suggestion['placePrediction'] ?? array();
-            if (empty($place['placeId'])) {
-                continue;
-            }
-
-            $suggestions[] = array(
-                'placeId'       => sanitize_text_field($place['placeId']),
-                'text'          => sanitize_text_field($place['text']['text'] ?? ''),
-                'mainText'      => sanitize_text_field($place['structuredFormat']['mainText']['text'] ?? ''),
-                'secondaryText' => sanitize_text_field($place['structuredFormat']['secondaryText']['text'] ?? ''),
-            );
-        }
-
-        if (empty($suggestions)) {
-            $suggestions = $this->get_text_search_suggestions($api_key, $input);
-        }
+        $suggestions = $this->get_text_search_suggestions($api_key, $input);
 
         wp_send_json_success(array('suggestions' => $suggestions));
     }
@@ -1448,10 +1403,14 @@ JS;
         );
 
         if (is_wp_error($response)) {
-            return array();
+            wp_send_json_error(array('message' => $response->get_error_message()), 500);
         }
 
         $body = json_decode(wp_remote_retrieve_body($response), true);
+        if (!empty($body['error']['message'])) {
+            wp_send_json_error(array('message' => sanitize_text_field($body['error']['message'])), 400);
+        }
+
         $suggestions = array();
         foreach (array_slice(($body['places'] ?? array()), 0, 5) as $place) {
             if (empty($place['id'])) {
@@ -1483,7 +1442,7 @@ JS;
             $parts[] = '| ' . $pickup_date;
         }
 
-        $title = 'Trip' . (!empty($parts) ? ' ' . implode(' ', $parts) : '') . (('publish' === get_post_status($post_id) && $this->trip_is_ready_to_publish($post_id)) ? '' : ' - DRAFT');
+        $title = 'Trip' . (!empty($parts) ? ' ' . implode(' ', $parts) : '');
 
         if (!$title || $title === $post->post_title) {
             return;
