@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.15 - 2026-07-25
+
+- Matched Trips Smart Monitor day counts and empty-state messages to the larger school/group and assignment text size.
+
 ## 0.2.14 - 2026-07-25
 
 - Refined Trips Smart Monitor typography by restoring the trip destination size while enlarging day counts, empty messages, school/group details, and assignment rows.
