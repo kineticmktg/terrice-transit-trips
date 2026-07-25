@@ -879,13 +879,20 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
 
     public function render_trip_list_header_actions_script() {
         $screen = get_current_screen();
-        if (!$screen || self::TRIP_POST_TYPE !== $screen->post_type) {
+        if (!$screen || !in_array($screen->post_type, array(self::TRIP_POST_TYPE, self::GROUP_POST_TYPE), true)) {
             return;
         }
 
+        $trips_url = admin_url('edit.php?post_type=' . self::TRIP_POST_TYPE);
         $groups_url = admin_url('edit.php?post_type=' . self::GROUP_POST_TYPE);
         echo '<script>';
-        echo '(function(){document.addEventListener("DOMContentLoaded",function(){var addButton=document.querySelector(".wrap .page-title-action");if(!addButton){return;}var groupsButton=document.createElement("a");groupsButton.className="page-title-action";groupsButton.href=' . wp_json_encode($groups_url) . ';groupsButton.textContent=' . wp_json_encode(__('Manage School Groups', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)) . ';addButton.insertAdjacentElement("afterend",groupsButton);});})();';
+        echo '(function(){document.addEventListener("DOMContentLoaded",function(){var addButton=document.querySelector(".wrap .page-title-action");if(!addButton){return;}var action=document.createElement("a");action.className="page-title-action";';
+        if (self::GROUP_POST_TYPE === $screen->post_type) {
+            echo 'action.href=' . wp_json_encode($trips_url) . ';action.textContent=' . wp_json_encode(__('Back to Trips', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)) . ';';
+        } else {
+            echo 'action.href=' . wp_json_encode($groups_url) . ';action.textContent=' . wp_json_encode(__('Manage School Groups', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)) . ';';
+        }
+        echo 'addButton.insertAdjacentElement("afterend",action);});})();';
         echo '</script>';
     }
 

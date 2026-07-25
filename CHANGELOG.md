@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.9 - 2026-07-24
+
+- Added a Back to Trips button to the School Trip Groups list page header.
+
 ## 0.1.8 - 2026-07-24
 
 - Removed the duplicate Trips module landing page from the Terricel Transit menu.
