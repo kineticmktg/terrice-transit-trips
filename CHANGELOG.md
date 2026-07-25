@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.34 - 2026-07-25
+
+- Expanded the Trips admin list columns to include advisor, return time, assignment slot details, and last modified user attribution.
+- Relabeled Arrival and Return trip times as Estimated Time and refreshed them when Google estimates, Pickup, Departure, or estimated travel time changes.
+
 ## 0.1.33 - 2026-07-25
 
 - Rounded Google-buffered one-way travel time estimates up to the next 10-minute interval.
