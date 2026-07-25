@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.6 - 2026-07-24
+
+- Improved the School Trip Group edit screen with a structured group details panel.
+- Added group advisor first name, last name, main phone, emergency phone, and email fields.
+- Added clickable phone and email contact links for saved school trip group advisor contacts.
+
 ## 0.1.5 - 2026-07-24
 
 - Added a default Today+ view for the Trips admin list so upcoming trips are shown by default.
