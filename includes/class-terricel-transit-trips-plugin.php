@@ -14,6 +14,7 @@ class Terricel_Transit_Trips_Plugin {
     const ROLE_TRIP_COORDINATOR = 'trip_coordinator';
     const CAP_MANAGE_TRIPS = 'terricel_manage_trips';
     const OPTION_GOOGLE_API_KEY = 'terricel_trips_google_api_key';
+    const OPTION_GOOGLE_RESTRICTED_IP = 'terricel_trips_google_restricted_ip';
     const OPTION_TRAVEL_BUFFER_PERCENT = 'terricel_trips_travel_buffer_percent';
     const OPTION_UNASSIGNED_NOTICE_HOURS = 'terricel_trips_unassigned_notice_hours';
     const OPTION_DRIVER_REMINDER_HOURS = 'terricel_trips_driver_reminder_hours';
@@ -211,6 +212,8 @@ class Terricel_Transit_Trips_Plugin {
         }
 
         $api_key = get_option(self::OPTION_GOOGLE_API_KEY, '');
+        $restricted_ip = get_option(self::OPTION_GOOGLE_RESTRICTED_IP, '');
+        $site_ip = $this->get_site_outbound_ip();
         $buffer = absint(get_option(self::OPTION_TRAVEL_BUFFER_PERCENT, 10));
 
         echo '<h2>' . esc_html__('Integrations', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</h2>';
@@ -222,17 +225,29 @@ class Terricel_Transit_Trips_Plugin {
         echo '<li>' . esc_html__('If you are on the "Create OAuth client ID" screen, click Cancel or go back. Do not create an OAuth client for this plugin.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</li>';
         echo '<li>' . esc_html__('In Google Cloud Console, open APIs & Services, then Library, and enable Routes API.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</li>';
         echo '<li>' . esc_html__('Open APIs & Services, then Credentials, then choose Create Credentials > API key.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</li>';
-        echo '<li>' . esc_html__('Restrict the key to the Routes API. If you add application restrictions, use a server/IP restriction that matches this WordPress server.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</li>';
+        echo '<li>' . esc_html__('Restrict the key to the Routes API and set Application restrictions to IP addresses.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</li>';
+        echo '<li>' . esc_html__('Add this WordPress server outbound IP address in Google, then paste the same IP into the Google API Restricted IP field below.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</li>';
         echo '<li>' . esc_html__('Paste the API key below and save. The driver map button does not need this key; it uses a normal map URL.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</li>';
         echo '</ol>';
         echo '</div>';
         echo '</details>';
+
+        if ($restricted_ip && $site_ip && $restricted_ip !== $site_ip) {
+            echo '<div class="notice notice-error inline"><p>' . esc_html__('Please update API IP address restrictions in the linked google console account', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</p></div>';
+        }
+
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         wp_nonce_field('terricel_trips_save_integrations');
         echo '<input type="hidden" name="action" value="terricel_trips_save_integrations">';
         echo '<table class="form-table" role="presentation"><tbody>';
         echo '<tr><th scope="row"><label for="terricel_trips_google_api_key">' . esc_html__('Google Maps API Key', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</label></th>';
         echo '<td><input class="regular-text" type="password" id="terricel_trips_google_api_key" name="terricel_trips_google_api_key" value="' . esc_attr($api_key) . '" autocomplete="off"></td></tr>';
+        echo '<tr><th scope="row">' . esc_html__('Detected Site Outbound IP', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</th>';
+        echo '<td><code>' . esc_html($site_ip ? $site_ip : __('Unable to detect', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)) . '</code> ';
+        echo '<span class="description">' . esc_html__('Use this IP address in Google Cloud API key Application restrictions.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</span></td></tr>';
+        echo '<tr><th scope="row"><label for="terricel_trips_google_restricted_ip">' . esc_html__('Google API Restricted IP', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</label></th>';
+        echo '<td><input class="regular-text" type="text" id="terricel_trips_google_restricted_ip" name="terricel_trips_google_restricted_ip" value="' . esc_attr($restricted_ip) . '" placeholder="' . esc_attr($site_ip) . '"> ';
+        echo '<p class="description">' . esc_html__('Enter the IP address saved in Google Cloud for this API key. If it does not match the detected site IP, the plugin will show a warning.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</p></td></tr>';
         echo '<tr><th scope="row"><label for="terricel_trips_travel_buffer_percent">' . esc_html__('Travel Time Buffer', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</label></th>';
         echo '<td><input class="small-text" type="number" min="0" max="100" step="1" id="terricel_trips_travel_buffer_percent" name="terricel_trips_travel_buffer_percent" value="' . esc_attr($buffer) . '">%</td></tr>';
         echo '</tbody></table>';
@@ -260,10 +275,39 @@ class Terricel_Transit_Trips_Plugin {
 
         check_admin_referer('terricel_trips_save_integrations');
         update_option(self::OPTION_GOOGLE_API_KEY, sanitize_text_field(wp_unslash($_POST['terricel_trips_google_api_key'] ?? '')));
+        update_option(self::OPTION_GOOGLE_RESTRICTED_IP, $this->sanitize_ip_address($_POST['terricel_trips_google_restricted_ip'] ?? ''));
         update_option(self::OPTION_TRAVEL_BUFFER_PERCENT, min(100, max(0, absint($_POST['terricel_trips_travel_buffer_percent'] ?? 10))));
 
         wp_safe_redirect(admin_url('admin.php?page=terricel-transit-settings&tab=integrations&integrations-updated=1'));
         exit;
+    }
+
+    private function get_site_outbound_ip() {
+        $cached = get_transient('terricel_trips_site_outbound_ip');
+        if ($cached) {
+            return $cached;
+        }
+
+        foreach (array('https://api.ipify.org', 'https://ifconfig.me/ip') as $url) {
+            $response = wp_remote_get($url, array('timeout' => 4));
+            if (is_wp_error($response)) {
+                continue;
+            }
+
+            $ip = $this->sanitize_ip_address(wp_remote_retrieve_body($response));
+            if ($ip) {
+                set_transient('terricel_trips_site_outbound_ip', $ip, HOUR_IN_SECONDS);
+                return $ip;
+            }
+        }
+
+        return '';
+    }
+
+    private function sanitize_ip_address($value) {
+        $value = trim(sanitize_text_field(wp_unslash($value)));
+
+        return filter_var($value, FILTER_VALIDATE_IP) ? $value : '';
     }
 
     public function ensure_cron_scheduled() {
