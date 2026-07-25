@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.11 - 2026-07-25
+
+- Injected a Trips Smart Monitor dashboard, page shortcode registration, Sunday-Saturday trip monitor data, and a monitor renderer that matches the dispatch board layout.
+
 ## 0.2.10 - 2026-07-25
 
 - Added driver notifications when a driver is removed or swapped off a trip assignment.

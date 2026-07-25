@@ -34,6 +34,10 @@ class Terricel_Transit_Trips_Plugin {
         add_filter('terricel_logistics_report_filter_rows', array($this, 'filter_report_filter_rows'));
         add_filter('terricel_logistics_build_report', array($this, 'build_report'), 10, 5);
         add_filter('terricel_logistics_report_availability', array($this, 'filter_report_availability'), 10, 5);
+        add_filter('terricel_logistics_kiosk_dashboards', array($this, 'filter_kiosk_dashboards'));
+        add_filter('terricel_logistics_kiosk_dashboard_data', array($this, 'filter_kiosk_dashboard_data'), 10, 2);
+        add_filter('terricel_logistics_kiosk_dashboard_styles', array($this, 'filter_kiosk_dashboard_styles'), 10, 2);
+        add_filter('terricel_logistics_kiosk_dashboard_script', array($this, 'filter_kiosk_dashboard_script'), 10, 2);
         add_action('terricel_logistics_render_report_filters', array($this, 'render_report_filters'), 10, 2);
         add_action('terricel_logistics_driver_dashboard_assignments', array($this, 'render_driver_dashboard_trips'), 10, 2);
         add_filter('terricel_logistics_driver_scheduled_pto_requests', array($this, 'pass_through_driver_pto_requests'));
@@ -223,6 +227,43 @@ class Terricel_Transit_Trips_Plugin {
         }
 
         return $this->module->get_report_availability($start_date, $end_date, is_array($request) ? $request : array());
+    }
+
+    public function filter_kiosk_dashboards($dashboards) {
+        $dashboards = is_array($dashboards) ? $dashboards : array();
+        $dashboards['trips'] = array(
+            'label'       => __('Trips', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+            'plain_label' => 'Trips',
+            'title'       => 'Terricel Trips Monitor',
+            'shortcode'   => '[terricel_kiosk_dashboard dashboard="trips"]',
+            'subtitle'    => __('Trip Monitor', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+        );
+
+        return $dashboards;
+    }
+
+    public function filter_kiosk_dashboard_data($data, $dashboard) {
+        if ('trips' !== $dashboard || !$this->module) {
+            return $data;
+        }
+
+        return $this->module->get_kiosk_trip_monitor_data();
+    }
+
+    public function filter_kiosk_dashboard_styles($styles, $dashboard) {
+        if ('trips' !== $dashboard) {
+            return $styles;
+        }
+
+        return $styles . '.terricel-trip-monitor-item{border-left:5px solid #62b6ff}.terricel-trip-monitor-item.has-vacancy{border-left-color:#ffb84d}.terricel-trip-monitor-time{font-size:24px;color:#e6f0fb;font-weight:700;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.terricel-trip-monitor-destination{font-size:28px;color:#fff;font-weight:800;line-height:1.12;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.terricel-trip-monitor-meta{font-size:18px;color:#becbda;line-height:1.18;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.terricel-trip-monitor-assignments{margin-top:10px;display:grid;gap:5px}.terricel-trip-monitor-assignment{font-size:16px;color:#e6f0fb;line-height:1.12;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.terricel-trip-monitor-vacant{color:#ffdfaa;font-weight:700}.terricel-dispatch-day[data-density="compact"] .terricel-trip-monitor-destination{font-size:17px}.terricel-dispatch-day[data-density="compact"] .terricel-trip-monitor-time{font-size:14px}.terricel-dispatch-day[data-density="compact"] .terricel-trip-monitor-meta,.terricel-dispatch-day[data-density="compact"] .terricel-trip-monitor-assignment{font-size:11px}.terricel-dispatch-day[data-density="tight"] .terricel-trip-monitor-destination{font-size:14px}.terricel-dispatch-day[data-density="tight"] .terricel-trip-monitor-time{font-size:11px}.terricel-dispatch-day[data-density="tight"] .terricel-trip-monitor-meta,.terricel-dispatch-day[data-density="tight"] .terricel-trip-monitor-assignment{font-size:9px}';
+    }
+
+    public function filter_kiosk_dashboard_script($script, $dashboard) {
+        if ('trips' !== $dashboard) {
+            return $script;
+        }
+
+        return $script . 'window.terricelKioskRenderers.trips=function(context){var payload=context.payload||{};var data=payload.data||{};var days=Array.isArray(data.days)?data.days:[];var grid=context.grid;var escapeHtml=context.escapeHtml;var setOnlineStatus=context.setOnlineStatus;var totalTrips=Number(data.total_trips||0);var totalVacant=Number(data.total_vacant_assignments||0);var busiest=0;days.forEach(function(day){var count=Array.isArray(day.items)?day.items.length:0;if(count>busiest){busiest=count;}});var density=busiest>8?"compact":(busiest>4?"medium":"comfortable");var html="<div class=\"terricel-dispatch-summary\"><span><strong>"+totalTrips+"</strong> trips this week</span><span><strong>"+totalVacant+"</strong> vacant assignments</span></div>";grid.className="terricel-dispatch-board";grid.setAttribute("data-density",density);html+="<div class=\"terricel-dispatch-week-grid\" style=\"--terricel-dispatch-day-count:"+Math.max(days.length,1)+";\">";days.forEach(function(day){var items=Array.isArray(day.items)?day.items:[];html+="<section class=\"terricel-dispatch-day"+(day.is_today?" is-today":"")+"\" data-density=\"comfortable\">";html+="<div class=\"terricel-dispatch-day-head\"><div class=\"terricel-dispatch-day-title\">"+escapeHtml(day.day_label)+" | "+escapeHtml(day.date_label)+"</div><div class=\"terricel-dispatch-day-count\">"+escapeHtml(day.trip_count)+" trips</div></div>";html+="<div class=\"terricel-dispatch-items\">";if(items.length){items.forEach(function(item){html+="<article class=\"terricel-dispatch-item terricel-trip-monitor-item"+(item.has_vacancy?" has-vacancy":"")+"\">";html+="<div class=\"terricel-trip-monitor-destination\">"+escapeHtml(item.destination||"Trip")+"</div>";html+="<div class=\"terricel-trip-monitor-time\">"+escapeHtml(item.pickup_label||"Pickup not set")+(item.return_label?" - "+escapeHtml(item.return_label):"")+"</div>";html+="<div class=\"terricel-trip-monitor-meta\">"+escapeHtml(item.school||"School not set")+(item.group?" | "+escapeHtml(item.group):"")+"</div>";if(Array.isArray(item.assignments)&&item.assignments.length){html+="<div class=\"terricel-trip-monitor-assignments\">";item.assignments.forEach(function(assignment){html+="<div class=\"terricel-trip-monitor-assignment"+(assignment.vacant?" terricel-trip-monitor-vacant":"")+"\">"+escapeHtml(assignment.slot)+": "+escapeHtml(assignment.bus)+" - "+escapeHtml(assignment.driver)+"</div>";});html+="</div>";}html+="</article>";});}else{html+="<div class=\"terricel-dispatch-empty\">No trips scheduled.</div>";}html+="</div></section>";});html+="</div>";grid.innerHTML=html;if(typeof window.requestAnimationFrame==="function"){window.requestAnimationFrame(function(){grid.querySelectorAll(".terricel-dispatch-day").forEach(function(column){var items=column.querySelector(".terricel-dispatch-items");if(!items){return;}["comfortable","medium","compact","tight"].some(function(level){column.setAttribute("data-density",level);return items.scrollHeight<=items.clientHeight+1;});});});}setOnlineStatus("Trip monitor data refreshed.");};';
     }
 
     public function ajax_report_groups() {

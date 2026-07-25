@@ -534,6 +534,66 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         echo '</tbody></table>';
     }
 
+    public function get_kiosk_trip_monitor_data() {
+        $today = current_time('Y-m-d');
+        $today_timestamp = strtotime($today);
+        $week_start_timestamp = strtotime('-' . (int) date('w', $today_timestamp) . ' days', $today_timestamp);
+        $week_end_timestamp = strtotime('+6 days', $week_start_timestamp);
+        $week_start = date('Y-m-d', $week_start_timestamp);
+        $week_end = date('Y-m-d', $week_end_timestamp);
+        $days = array();
+        $trips_by_date = array();
+        $total_trips = 0;
+        $total_vacant_assignments = 0;
+
+        for ($offset = 0; $offset < 7; $offset++) {
+            $timestamp = strtotime('+' . $offset . ' days', $week_start_timestamp);
+            $date = date('Y-m-d', $timestamp);
+            $trips_by_date[$date] = array();
+            $days[$date] = array(
+                'date'       => $date,
+                'day_label'  => date_i18n('l', $timestamp),
+                'date_label' => date_i18n('M j', $timestamp),
+                'is_today'   => $date === $today,
+                'trip_count' => 0,
+                'items'      => array(),
+            );
+        }
+
+        foreach ($this->get_trip_report_trips($week_start, $week_end) as $trip) {
+            $trip_id = absint($trip->ID);
+            $date = get_post_meta($trip_id, '_terricel_trip_pickup_date', true);
+            if (!isset($trips_by_date[$date])) {
+                continue;
+            }
+
+            $item = $this->get_kiosk_trip_monitor_item($trip_id);
+            $trips_by_date[$date][] = $item;
+            $total_trips++;
+            $total_vacant_assignments += absint($item['vacant_assignments']);
+        }
+
+        foreach ($trips_by_date as $date => $items) {
+            usort(
+                $items,
+                function ($first, $second) {
+                    return strcmp($first['sort_time'], $second['sort_time']);
+                }
+            );
+            $days[$date]['trip_count'] = count($items);
+            $days[$date]['items'] = $items;
+        }
+
+        return array(
+            'view'                     => 'week',
+            'week_start'               => $week_start,
+            'week_end'                 => $week_end,
+            'days'                     => array_values($days),
+            'total_trips'              => $total_trips,
+            'total_vacant_assignments' => $total_vacant_assignments,
+        );
+    }
+
     public function render_report_filters($selected_type, $report_query) {
         $selected_school_id = isset($report_query['terricel_report_trip_school_id']) ? absint($report_query['terricel_report_trip_school_id']) : 0;
         $selected_group_id = isset($report_query['terricel_report_trip_group_id']) ? absint($report_query['terricel_report_trip_group_id']) : 0;
@@ -1159,6 +1219,50 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
     private function get_trip_assignments($trip_id) {
         $assignments = get_post_meta($trip_id, '_terricel_trip_assignments', true);
         return is_array($assignments) ? array_values($assignments) : array();
+    }
+
+    private function get_kiosk_trip_monitor_item($trip_id) {
+        $assignments = $this->get_trip_assignments($trip_id);
+        $buses_needed = absint(get_post_meta($trip_id, '_terricel_trip_buses_needed', true));
+        $slot_count = max($buses_needed, count($assignments));
+        $assignment_rows = array();
+        $vacant_assignments = 0;
+
+        for ($i = 0; $i < $slot_count; $i++) {
+            $assignment = isset($assignments[$i]) && is_array($assignments[$i]) ? $assignments[$i] : array();
+            $bus_id = absint($assignment['bus_id'] ?? 0);
+            $driver_id = absint($assignment['driver_id'] ?? 0);
+            $is_vacant = $driver_id < 1;
+
+            if ($is_vacant) {
+                $vacant_assignments++;
+            }
+
+            $assignment_rows[] = array(
+                'slot'   => $this->get_assignment_slot_label($i),
+                'bus'    => $bus_id > 0 ? get_the_title($bus_id) : __('No bus', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+                'driver' => $driver_id > 0 ? get_the_title($driver_id) : __('Vacant', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+                'vacant' => $is_vacant,
+            );
+        }
+
+        $pickup_time = get_post_meta($trip_id, '_terricel_trip_pickup_time', true);
+        $return_time = get_post_meta($trip_id, '_terricel_trip_return_time', true);
+        $group_id = absint(get_post_meta($trip_id, '_terricel_trip_group_id', true));
+
+        return array(
+            'id'                 => $trip_id,
+            'title'              => get_the_title($trip_id),
+            'school'             => $this->get_school_label((int) get_post_meta($trip_id, '_terricel_trip_school_id', true)),
+            'group'              => $group_id > 0 ? get_the_title($group_id) : '',
+            'destination'        => $this->get_trip_destination_label($trip_id),
+            'pickup_label'       => $pickup_time ? date_i18n(get_option('time_format'), strtotime($pickup_time)) : __('Pickup not set', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+            'return_label'       => $return_time ? date_i18n(get_option('time_format'), strtotime($return_time)) : '',
+            'sort_time'          => $pickup_time ? $this->sanitize_time($pickup_time) : '99:99',
+            'assignments'        => $assignment_rows,
+            'vacant_assignments' => $vacant_assignments,
+            'has_vacancy'        => $vacant_assignments > 0,
+        );
     }
 
     private function get_trip_actuals($trip_id) {
