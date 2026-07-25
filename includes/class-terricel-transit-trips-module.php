@@ -173,7 +173,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         echo '<p><label for="terricel_trip_destination_address"><strong>' . esc_html__('Destination Address', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</strong></label></p>';
         echo '<div class="terricel-address-lookup"><input class="widefat" type="text" id="terricel_trip_destination_address" name="terricel_trip_destination_address" value="' . esc_attr($address) . '" autocomplete="off"><div id="terricel_trip_address_suggestions" class="terricel-address-suggestions" hidden></div></div>';
         echo '<div class="terricel-trip-grid">';
-        echo '<p><label for="terricel_trip_estimated_mileage"><strong>' . esc_html__('Estimated Round Trip Mileage', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</strong></label><br><input type="number" min="0" step="0.1" id="terricel_trip_estimated_mileage" name="terricel_trip_estimated_mileage" value="' . esc_attr($mileage) . '"></p>';
+        echo '<p><label for="terricel_trip_estimated_mileage"><strong>' . esc_html__('Estimated Round Trip Mileage', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</strong></label><br><input type="number" min="0" step="1" id="terricel_trip_estimated_mileage" name="terricel_trip_estimated_mileage" value="' . esc_attr($mileage) . '"></p>';
         echo '<p><label for="terricel_trip_estimated_travel_minutes"><strong>' . esc_html__('Estimated One-Way Travel Time', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</strong></label><br><input type="number" min="0" step="1" id="terricel_trip_estimated_travel_minutes" name="terricel_trip_estimated_travel_minutes" value="' . esc_attr($travel_minutes) . '"> ' . esc_html__('minutes', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</p>';
         echo '</div>';
 
@@ -314,6 +314,10 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
                 $estimated_minutes = $estimate['minutes'];
             }
         }
+        if ('' !== $estimated_mileage) {
+            $estimated_mileage = (string) ceil((float) $estimated_mileage);
+        }
+
         update_post_meta($post_id, '_terricel_trip_estimated_mileage', $estimated_mileage);
         update_post_meta($post_id, '_terricel_trip_estimated_travel_minutes', $estimated_minutes);
 
@@ -777,6 +781,8 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
                         'travelMode' => 'DRIVE',
                         'units' => 'IMPERIAL',
                         'computeAlternativeRoutes' => true,
+                        'routingPreference' => 'TRAFFIC_AWARE_OPTIMAL',
+                        'departureTime' => gmdate('Y-m-d\TH:i:s\Z'),
                     )
                 ),
             )
@@ -820,7 +826,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
     }
 
     private function get_google_route_duration_seconds($route) {
-        $duration = $route['staticDuration'] ?? $route['duration'] ?? '';
+        $duration = $route['duration'] ?? $route['staticDuration'] ?? '';
         if ('' === $duration) {
             return PHP_FLOAT_MAX;
         }
@@ -904,7 +910,7 @@ school.addEventListener("change",function(){if(panel){panel.hidden=true;}loadGro
 if(toggle&&panel){toggle.addEventListener("click",function(){if(parseInt(school.value,10)<1){setMessage(config.strings.selectSchool,true);return;}panel.hidden=!panel.hidden;if(!panel.hidden){var name=document.getElementById("terricel_trip_new_group_name");if(name){name.focus();}}});}
 if(cancel&&panel){cancel.addEventListener("click",function(){panel.hidden=true;setMessage("");});}
 if(save){save.addEventListener("click",function(){var name=document.getElementById("terricel_trip_new_group_name");var first=document.getElementById("terricel_trip_new_group_advisor_first_name");var last=document.getElementById("terricel_trip_new_group_advisor_last_name");var required=[name,first,last];var missing=required.find(function(input){return !input||!input.value.trim();});if(missing){setMessage(config.strings.requiredGroup,true);missing.focus();return;}if(parseInt(school.value,10)<1){setMessage(config.strings.selectSchool,true);return;}save.disabled=true;setMessage(config.strings.saving,false);post("terricel_create_trip_group",{school_id:school.value,group_name:name.value,advisor_first_name:first.value,advisor_last_name:last.value,advisor_main_phone:(document.getElementById("terricel_trip_new_group_advisor_main_phone")||{}).value||"",advisor_main_phone_extension:(document.getElementById("terricel_trip_new_group_advisor_main_phone_extension")||{}).value||"",advisor_emergency_phone:(document.getElementById("terricel_trip_new_group_advisor_emergency_phone")||{}).value||"",advisor_email:(document.getElementById("terricel_trip_new_group_advisor_email")||{}).value||""}).then(function(data){if(data.group){var row=option(data.group.id,data.group.label);row.selected=true;group.appendChild(row);group.value=String(data.group.id);}clearPanel();if(panel){panel.hidden=true;}setMessage(config.strings.saved,false);syncWorkflow();}).catch(function(error){setMessage(error.message,true);}).finally(function(){save.disabled=false;});});}
-syncDates();syncBusSlots();initAddressLookup();syncWorkflow();
+syncDates();syncBusSlots();initAddressLookup();if(destination&&destination.value.trim()&&parseInt(school.value,10)>0){requestEstimate(true);}syncWorkflow();
 });
 }(__CONFIG__));
 JS;

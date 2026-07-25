@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.22 - 2026-07-25
+
+- Switched route estimates to traffic-aware fastest-route duration so time matches Google Maps "Leave now" behavior more closely.
+- Normalized estimated round-trip mileage to whole miles in the editor and on save.
+- Refreshed existing trip estimates when opening an edit screen with a saved school and destination.
+
 ## 0.1.21 - 2026-07-25
 
 - Refreshed Google mileage and travel-time estimates whenever the destination changes, even after manual estimate edits.
