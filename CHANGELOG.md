@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.11 - 2026-07-24
+
+- Filtered Trip school groups to the selected school and added advisor names to group dropdown labels.
+- Added inline School Trip Group creation on the Trip edit screen without leaving or refreshing the trip form.
+- Locked the Destination & Estimates and Buses & Drivers panels until both School and School Group are selected.
+
 ## 0.1.10 - 2026-07-24
 
 - Moved the School Trip Groups Back to Trips button directly under the page title.
