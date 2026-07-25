@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.23 - 2026-07-25
+
+- Restored debounced auto-refresh of mileage and travel-time estimates while destination addresses are edited manually.
+
 ## 0.1.22 - 2026-07-25
 
 - Switched route estimates to traffic-aware fastest-route duration so time matches Google Maps "Leave now" behavior more closely.
