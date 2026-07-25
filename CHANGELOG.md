@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.30 - 2026-07-25
+
+- Moved the Trip Google Maps Diagnostics settings section onto the core Settings > Tools extension hook.
+
 ## 0.1.29 - 2026-07-25
 
 - Added a Settings > Tools toggle to enable or disable Trip Google Maps route diagnostics.

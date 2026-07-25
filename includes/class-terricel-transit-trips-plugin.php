@@ -37,7 +37,7 @@ class Terricel_Transit_Trips_Plugin {
         add_action('admin_post_terricel_trips_save_tools', array($this, 'save_tools_settings'));
         add_action('terricel_logistics_render_settings_tab_trips', array($this, 'render_trip_settings_tab'));
         add_action('terricel_logistics_render_settings_tab_integrations', array($this, 'render_integrations_tab'));
-        add_action('terricel_logistics_render_settings_tab_tools', array($this, 'render_tools_tab_section'));
+        add_action('terricel_logistics_render_tools_settings', array($this, 'render_tools_tab_section'));
         add_action(self::CRON_HOOK, array($this, 'send_due_trip_notifications'));
     }
 
