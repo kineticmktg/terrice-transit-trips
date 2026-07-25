@@ -33,6 +33,7 @@ class Terricel_Transit_Trips_Plugin {
         add_filter('terricel_logistics_report_types', array($this, 'filter_report_types'));
         add_filter('terricel_logistics_report_filter_rows', array($this, 'filter_report_filter_rows'));
         add_filter('terricel_logistics_build_report', array($this, 'build_report'), 10, 5);
+        add_filter('terricel_logistics_report_availability', array($this, 'filter_report_availability'), 10, 5);
         add_action('terricel_logistics_render_report_filters', array($this, 'render_report_filters'), 10, 2);
         add_action('terricel_logistics_driver_dashboard_assignments', array($this, 'render_driver_dashboard_trips'), 10, 2);
         add_filter('terricel_logistics_driver_scheduled_pto_requests', array($this, 'pass_through_driver_pto_requests'));
@@ -214,6 +215,14 @@ class Terricel_Transit_Trips_Plugin {
         }
 
         return $this->module->build_trips_by_school_report($start_date, $end_date, is_array($request) ? $request : array());
+    }
+
+    public function filter_report_availability($data, $type, $start_date, $end_date, $request) {
+        if ('trips_by_school' !== $type || !$this->module) {
+            return $data;
+        }
+
+        return $this->module->get_report_availability($start_date, $end_date, is_array($request) ? $request : array());
     }
 
     public function ajax_report_groups() {

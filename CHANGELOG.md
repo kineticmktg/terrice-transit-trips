@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.9 - 2026-07-25
+
+- Connected Trips by School reporting to the core report availability checks so trip school and group filters only show options with trips in the selected date range and PDF creation is disabled when no trips match.
+
 ## 0.2.8 - 2026-07-25
 
 - Changed Trips by School PDF assignment details to render as an indented nested table directly under each trip row with bus, driver, pre-trip mileage, post-trip mileage, and total mileage columns.
