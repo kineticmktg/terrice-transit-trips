@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.14 - 2026-07-25
+
+- Reworked Trip editing into a staged workflow: Trip Details, Destination & Estimates, Dates & Times, then Buses & Drivers.
+- Added Google Places Text Search fallback and visible Google API errors for destination lookup.
+- Auto-calculated Arrival and Return times from Google travel time estimates and the configured buffer.
+- Hid the manual Trip title field and generated trip titles from school group, school nickname, destination, and pickup date.
+- Prevented incomplete staged trips from being published while still allowing Save Draft.
+
 ## 0.1.13 - 2026-07-25
 
 - Added server-side Google Places destination address lookup on the Trip edit screen.
