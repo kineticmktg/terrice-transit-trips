@@ -33,6 +33,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
 
     protected function register_hooks() {
         if (is_admin()) {
+            add_action('admin_menu', array($this, 'remove_duplicate_module_menu'), 1001);
             add_action('add_meta_boxes', array($this, 'add_meta_boxes'));
             add_action('save_post_' . self::TRIP_POST_TYPE, array($this, 'save_trip_meta'), 10, 2);
             add_action('save_post_' . self::GROUP_POST_TYPE, array($this, 'save_group_meta'), 10, 2);
@@ -45,6 +46,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             add_action('manage_' . self::GROUP_POST_TYPE . '_posts_custom_column', array($this, 'render_group_column'), 10, 2);
             add_filter('enter_title_here', array($this, 'filter_title_placeholder'), 10, 2);
             add_action('edit_form_top', array($this, 'render_back_to_trips_button'));
+            add_action('admin_head-edit.php', array($this, 'render_trip_list_header_actions_script'));
             add_action('admin_notices', array($this, 'render_admin_notices'));
             add_filter('redirect_post_location', array($this, 'filter_post_redirect'), 10, 2);
             add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_assets'));
@@ -52,12 +54,13 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
     }
 
     public function render_admin_page() {
-        echo '<p>';
-        echo '<a class="button button-primary" href="' . esc_url(admin_url('post-new.php?post_type=' . self::TRIP_POST_TYPE)) . '">' . esc_html__('Add Trip', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</a> ';
-        echo '<a class="button" href="' . esc_url(admin_url('edit.php?post_type=' . self::TRIP_POST_TYPE)) . '">' . esc_html__('Manage Trips', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</a> ';
-        echo '<a class="button" href="' . esc_url(admin_url('edit.php?post_type=' . self::GROUP_POST_TYPE)) . '">' . esc_html__('School Groups', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</a>';
-        echo '</p>';
-        $this->render_upcoming_trip_summary();
+        wp_safe_redirect(admin_url('edit.php?post_type=' . self::TRIP_POST_TYPE));
+        exit;
+    }
+
+    public function remove_duplicate_module_menu() {
+        remove_submenu_page('terricel-transit', 'terricel-transit-' . self::MODULE_ID);
+        remove_submenu_page('terricel-transit', 'edit.php?post_type=' . self::GROUP_POST_TYPE);
     }
 
     private function register_trip_post_type() {
@@ -224,6 +227,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         $first_name = get_post_meta($post->ID, '_terricel_trip_group_advisor_first_name', true);
         $last_name = get_post_meta($post->ID, '_terricel_trip_group_advisor_last_name', true);
         $main_phone = get_post_meta($post->ID, '_terricel_trip_group_advisor_main_phone', true);
+        $main_phone_extension = get_post_meta($post->ID, '_terricel_trip_group_advisor_main_phone_extension', true);
         $emergency_phone = get_post_meta($post->ID, '_terricel_trip_group_advisor_emergency_phone', true);
         $email = get_post_meta($post->ID, '_terricel_trip_group_advisor_email', true);
 
@@ -232,6 +236,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         $this->render_text_field('terricel_trip_group_advisor_first_name', __('Advisor First Name', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $first_name, 'text');
         $this->render_text_field('terricel_trip_group_advisor_last_name', __('Advisor Last Name', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $last_name, 'text');
         $this->render_text_field('terricel_trip_group_advisor_main_phone', __('Main Phone', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $main_phone, 'tel');
+        $this->render_text_field('terricel_trip_group_advisor_main_phone_extension', __('Extension', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $main_phone_extension, 'text', 'numeric');
         $this->render_text_field('terricel_trip_group_advisor_emergency_phone', __('Emergency Phone', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $emergency_phone, 'tel');
         $this->render_text_field('terricel_trip_group_advisor_email', __('Email', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $email, 'email');
         echo '</div>';
@@ -326,6 +331,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         update_post_meta($post_id, '_terricel_trip_group_advisor_first_name', $this->sanitize_person_name($_POST['terricel_trip_group_advisor_first_name'] ?? ''));
         update_post_meta($post_id, '_terricel_trip_group_advisor_last_name', $this->sanitize_person_name($_POST['terricel_trip_group_advisor_last_name'] ?? ''));
         update_post_meta($post_id, '_terricel_trip_group_advisor_main_phone', $this->sanitize_phone($_POST['terricel_trip_group_advisor_main_phone'] ?? ''));
+        update_post_meta($post_id, '_terricel_trip_group_advisor_main_phone_extension', $this->sanitize_extension($_POST['terricel_trip_group_advisor_main_phone_extension'] ?? ''));
         update_post_meta($post_id, '_terricel_trip_group_advisor_emergency_phone', $this->sanitize_phone($_POST['terricel_trip_group_advisor_emergency_phone'] ?? ''));
         update_post_meta($post_id, '_terricel_trip_group_advisor_email', sanitize_email(wp_unslash($_POST['terricel_trip_group_advisor_email'] ?? '')));
     }
@@ -871,6 +877,18 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         echo '<p class="terricel-trips-back-link"><a class="button" href="' . esc_url(admin_url('edit.php?post_type=' . self::TRIP_POST_TYPE)) . '">' . esc_html__('Back to Trips', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</a></p>';
     }
 
+    public function render_trip_list_header_actions_script() {
+        $screen = get_current_screen();
+        if (!$screen || self::TRIP_POST_TYPE !== $screen->post_type) {
+            return;
+        }
+
+        $groups_url = admin_url('edit.php?post_type=' . self::GROUP_POST_TYPE);
+        echo '<script>';
+        echo '(function(){document.addEventListener("DOMContentLoaded",function(){var addButton=document.querySelector(".wrap .page-title-action");if(!addButton){return;}var groupsButton=document.createElement("a");groupsButton.className="page-title-action";groupsButton.href=' . wp_json_encode($groups_url) . ';groupsButton.textContent=' . wp_json_encode(__('Manage School Groups', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)) . ';addButton.insertAdjacentElement("afterend",groupsButton);});})();';
+        echo '</script>';
+    }
+
     private function render_post_select_field($name, $label, $post_type, $selected, $empty_label) {
         echo '<p>';
         if ($label) {
@@ -884,10 +902,13 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         echo '</select></p>';
     }
 
-    private function render_text_field($name, $label, $value, $type = 'text') {
+    private function render_text_field($name, $label, $value, $type = 'text', $inputmode = '') {
         $is_phone_field = 'tel' === $type;
         $class = $is_phone_field ? 'terricel-phone-field' : '';
         $extra = $is_phone_field ? ' inputmode="numeric" autocomplete="tel" maxlength="14"' : '';
+        if (!$is_phone_field && $inputmode) {
+            $extra .= ' inputmode="' . esc_attr($inputmode) . '"';
+        }
 
         echo '<p>';
         echo '<label for="' . esc_attr($name) . '"><strong>' . esc_html($label) . '</strong></label><br>';
@@ -1051,11 +1072,13 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         $links = array();
         $class = $as_buttons ? 'button button-secondary' : '';
         $main_phone = get_post_meta($post_id, '_terricel_trip_group_advisor_main_phone', true);
+        $main_phone_extension = get_post_meta($post_id, '_terricel_trip_group_advisor_main_phone_extension', true);
         $emergency_phone = get_post_meta($post_id, '_terricel_trip_group_advisor_emergency_phone', true);
         $email = get_post_meta($post_id, '_terricel_trip_group_advisor_email', true);
 
         if ($main_phone) {
-            $links[] = '<a class="' . esc_attr($class) . '" href="tel:' . esc_attr($this->get_phone_href($main_phone)) . '"><span class="dashicons dashicons-phone"></span> ' . esc_html(sprintf(__('Main: %s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $main_phone)) . '</a>';
+            $main_phone_label = $main_phone_extension ? sprintf(__('%1$s ext. %2$s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $main_phone, $main_phone_extension) : $main_phone;
+            $links[] = '<a class="' . esc_attr($class) . '" href="tel:' . esc_attr($this->get_phone_href($main_phone)) . '"><span class="dashicons dashicons-phone"></span> ' . esc_html(sprintf(__('Main: %s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $main_phone_label)) . '</a>';
         }
 
         if ($emergency_phone) {
@@ -1120,6 +1143,10 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
 
         $digits = preg_replace('/\D+/', '', (string) wp_unslash($value));
         return substr($digits, 0, 10);
+    }
+
+    private function sanitize_extension($value) {
+        return substr(preg_replace('/\D+/', '', (string) wp_unslash($value)), 0, 8);
     }
 
     private function get_phone_href($phone) {

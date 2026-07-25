@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.8 - 2026-07-24
+
+- Removed the duplicate Trips module landing page from the Terricel Transit menu.
+- Added a Manage School Groups button beside Add New Trip on the Trips list page.
+- Added a school trip group advisor main phone extension field.
+
 ## 0.1.7 - 2026-07-24
 
 - Updated school trip group advisor phone fields to use the core Terricel phone formatter.
