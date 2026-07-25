@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.25 - 2026-07-25
+
+- Added visible estimate refresh status and Google Routes API error messages to the Trip editor.
+- Added a manual Refresh Google Estimate action that uses the same forced update path as automatic estimate refreshes.
+- Returned route estimate diagnostics from the server so failed updates no longer leave stale values silently.
+
 ## 0.1.24 - 2026-07-25
 
 - Forced auto-estimate refreshes to overwrite mileage and travel time with rounded values on address, location, and school changes.
