@@ -255,7 +255,35 @@ class Terricel_Transit_Trips_Plugin {
             return $styles;
         }
 
-        return $styles . '.terricel-trip-monitor-item{border-left:5px solid #62b6ff}.terricel-trip-monitor-item.has-vacancy{border-left-color:#ffb84d}.terricel-trip-monitor-time{font-size:24px;color:#e6f0fb;font-weight:700;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.terricel-trip-monitor-destination{font-size:28px;color:#fff;font-weight:800;line-height:1.12;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.terricel-trip-monitor-meta{font-size:18px;color:#becbda;line-height:1.18;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.terricel-trip-monitor-assignments{margin-top:10px;display:grid;gap:5px}.terricel-trip-monitor-assignment{font-size:16px;color:#e6f0fb;line-height:1.12;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.terricel-trip-monitor-vacant{color:#ffdfaa;font-weight:700}.terricel-dispatch-day[data-density="compact"] .terricel-trip-monitor-destination{font-size:17px}.terricel-dispatch-day[data-density="compact"] .terricel-trip-monitor-time{font-size:14px}.terricel-dispatch-day[data-density="compact"] .terricel-trip-monitor-meta,.terricel-dispatch-day[data-density="compact"] .terricel-trip-monitor-assignment{font-size:11px}.terricel-dispatch-day[data-density="tight"] .terricel-trip-monitor-destination{font-size:14px}.terricel-dispatch-day[data-density="tight"] .terricel-trip-monitor-time{font-size:11px}.terricel-dispatch-day[data-density="tight"] .terricel-trip-monitor-meta,.terricel-dispatch-day[data-density="tight"] .terricel-trip-monitor-assignment{font-size:9px}';
+        return $styles
+            . '.terricel-kiosk-dashboard[data-dashboard="trips"] .terricel-dispatch-summary{font-size:30px;margin-bottom:22px}'
+            . '.terricel-kiosk-dashboard[data-dashboard="trips"] .terricel-dispatch-summary strong{font-size:40px}'
+            . '.terricel-kiosk-dashboard[data-dashboard="trips"] .terricel-dispatch-day-head{padding:14px 16px}'
+            . '.terricel-kiosk-dashboard[data-dashboard="trips"] .terricel-dispatch-day-title{width:100%;font-size:32px;line-height:1.08}'
+            . '.terricel-kiosk-dashboard[data-dashboard="trips"] .terricel-dispatch-day-count{font-size:20px;margin-top:8px}'
+            . '.terricel-kiosk-dashboard[data-dashboard="trips"] .terricel-dispatch-items{gap:16px;padding:16px}'
+            . '.terricel-kiosk-dashboard[data-dashboard="trips"] .terricel-dispatch-empty{font-size:20px;line-height:1.25}'
+            . '.terricel-trip-monitor-item{border-left:7px solid #62b6ff;padding:18px}'
+            . '.terricel-trip-monitor-item.has-vacancy{border-left-color:#ffb84d}'
+            . '.terricel-trip-monitor-destination{font-size:40px;color:#fff;font-weight:900;line-height:1.06;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+            . '.terricel-trip-monitor-time{font-size:32px;color:#e6f0fb;font-weight:800;line-height:1.1;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+            . '.terricel-trip-monitor-meta{font-size:24px;color:#becbda;line-height:1.16;margin-top:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+            . '.terricel-trip-monitor-assignments{margin-top:14px;display:grid;gap:8px}'
+            . '.terricel-trip-monitor-assignment{font-size:22px;color:#e6f0fb;line-height:1.14;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+            . '.terricel-trip-monitor-vacant{color:#ffdfaa;font-weight:900}'
+            . '.terricel-dispatch-day[data-density="medium"] .terricel-trip-monitor-item{padding:14px}'
+            . '.terricel-dispatch-day[data-density="medium"] .terricel-trip-monitor-destination{font-size:30px}'
+            . '.terricel-dispatch-day[data-density="medium"] .terricel-trip-monitor-time{font-size:24px}'
+            . '.terricel-dispatch-day[data-density="medium"] .terricel-trip-monitor-meta{font-size:19px}'
+            . '.terricel-dispatch-day[data-density="medium"] .terricel-trip-monitor-assignment{font-size:17px}'
+            . '.terricel-dispatch-day[data-density="compact"] .terricel-trip-monitor-item{padding:9px}'
+            . '.terricel-dispatch-day[data-density="compact"] .terricel-trip-monitor-destination{font-size:22px}'
+            . '.terricel-dispatch-day[data-density="compact"] .terricel-trip-monitor-time{font-size:18px}'
+            . '.terricel-dispatch-day[data-density="compact"] .terricel-trip-monitor-meta,.terricel-dispatch-day[data-density="compact"] .terricel-trip-monitor-assignment{font-size:14px}'
+            . '.terricel-dispatch-day[data-density="tight"] .terricel-trip-monitor-item{padding:6px}'
+            . '.terricel-dispatch-day[data-density="tight"] .terricel-trip-monitor-destination{font-size:17px}'
+            . '.terricel-dispatch-day[data-density="tight"] .terricel-trip-monitor-time{font-size:14px}'
+            . '.terricel-dispatch-day[data-density="tight"] .terricel-trip-monitor-meta,.terricel-dispatch-day[data-density="tight"] .terricel-trip-monitor-assignment{font-size:11px}';
     }
 
     public function filter_kiosk_dashboard_script($script, $dashboard) {

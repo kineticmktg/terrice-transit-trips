@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.13 - 2026-07-25
+
+- Enlarged Trips Smart Monitor typography for better readability on large TV displays across a room.
+
 ## 0.2.12 - 2026-07-25
 
 - Changed the Trips Smart Monitor to use forward rolling Sunday-Saturday columns while always showing weekend columns.
