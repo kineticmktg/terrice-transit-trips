@@ -56,6 +56,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             add_action('wp_ajax_terricel_trip_place_details', array($this, 'ajax_trip_place_details'));
             add_action('wp_ajax_terricel_trip_destination_estimate', array($this, 'ajax_trip_destination_estimate'));
             add_action('wp_ajax_terricel_trip_driver_conflicts', array($this, 'ajax_trip_driver_conflicts'));
+            add_action('wp_ajax_terricel_trip_bus_availability', array($this, 'ajax_trip_bus_availability'));
         }
     }
 
@@ -242,7 +243,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             echo '<tr class="terricel-trip-assignment-slot-row">';
             echo '<td>' . esc_html(sprintf(__('Bus %d', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $i + 1)) . '</td>';
             echo '<td>' . $this->get_bus_select('terricel_trip_assignments[' . $i . '][bus_id]', absint($assignment['bus_id']), $post->ID) . '</td>';
-            echo '<td>' . $this->get_driver_select('terricel_trip_assignments[' . $i . '][driver_id]', absint($assignment['driver_id'])) . '</td>';
+            echo '<td><div class="terricel-trip-driver-cell">' . $this->get_driver_select('terricel_trip_assignments[' . $i . '][driver_id]', absint($assignment['driver_id'])) . '<span class="terricel-trip-conflict-status" hidden></span></div></td>';
             echo '</tr>';
             if ($show_actuals) {
                 $this->render_trip_actuals_row($i, $actuals[$i] ?? array());
@@ -251,7 +252,6 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
 
         echo '</tbody></table>';
         echo '<input type="hidden" id="terricel_trip_confirm_conflicts_hidden" name="terricel_trip_confirm_conflicts" value="">';
-        echo '<div id="terricel_trip_conflict_status" class="terricel-trip-conflict-status" hidden></div>';
         echo '<div id="terricel_trip_conflict_dialog" class="terricel-trip-conflict-dialog" hidden role="dialog" aria-modal="true" aria-labelledby="terricel_trip_conflict_title">';
         echo '<div class="terricel-trip-conflict-card">';
         echo '<h3 id="terricel_trip_conflict_title">' . esc_html__('Driver Route Conflicts', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</h3>';
@@ -260,7 +260,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         echo '<div class="terricel-trip-conflict-actions"><button type="button" class="button button-primary terricel-trip-conflict-confirm" id="terricel_trip_confirm_conflict_button">' . esc_html__('Confirm Route Vacancies', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</button><button type="button" class="button" id="terricel_trip_close_conflict_dialog">' . esc_html__('Review Driver Selection', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</button></div>';
         echo '</div></div>';
         echo '<script type="text/template" id="terricel_trip_assignment_row_template">';
-        echo '<tr class="terricel-trip-assignment-slot-row"><td>' . esc_html__('Bus __NUMBER__', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</td><td>' . $this->get_bus_select('terricel_trip_assignments[__INDEX__][bus_id]', 0, $post->ID) . '</td><td>' . $this->get_driver_select('terricel_trip_assignments[__INDEX__][driver_id]', 0) . '</td></tr>';
+        echo '<tr class="terricel-trip-assignment-slot-row"><td>' . esc_html__('Bus __NUMBER__', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</td><td>' . $this->get_bus_select('terricel_trip_assignments[__INDEX__][bus_id]', 0, $post->ID) . '</td><td><div class="terricel-trip-driver-cell">' . $this->get_driver_select('terricel_trip_assignments[__INDEX__][driver_id]', 0) . '<span class="terricel-trip-conflict-status" hidden></span></div></td></tr>';
         if ($show_actuals) {
             $this->render_trip_actuals_row('__INDEX__', array());
         }
@@ -382,7 +382,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             update_post_meta($post_id, '_terricel_trip_arrival_time', date('H:i', $arrival_timestamp));
         }
 
-        $assignments = $this->sanitize_assignments($_POST['terricel_trip_assignments'] ?? array(), $buses_needed);
+        $assignments = $this->sanitize_assignments($_POST['terricel_trip_assignments'] ?? array(), $buses_needed, $post_id);
         $conflicts = $this->get_assignment_conflicts($post_id, $assignments);
         $confirmed = !empty($_POST['terricel_trip_confirm_conflicts']) || !empty($_POST['terricel_trip_confirm_conflicts_pending']);
 
@@ -714,13 +714,21 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         return is_array($actuals) ? array_values($actuals) : array();
     }
 
-    private function sanitize_assignments($assignments, $limit) {
+    private function sanitize_assignments($assignments, $limit, $trip_id = 0) {
         $assignments = is_array($assignments) ? $assignments : array();
         $clean = array();
+        $used_bus_ids = array();
 
         foreach (array_slice($assignments, 0, $limit) as $assignment) {
             $bus_id = absint($assignment['bus_id'] ?? 0);
             $driver_id = absint($assignment['driver_id'] ?? 0);
+            if ($bus_id > 0) {
+                if (in_array($bus_id, $used_bus_ids, true) || ($trip_id > 0 && $this->bus_has_trip_conflict($bus_id, $trip_id))) {
+                    $bus_id = 0;
+                } else {
+                    $used_bus_ids[] = $bus_id;
+                }
+            }
             if ($bus_id < 1 && $driver_id < 1) {
                 continue;
             }
@@ -1051,7 +1059,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         wp_register_style('terricel-transit-trips-admin', false, array(), TERRICEL_TRANSIT_TRIPS_VERSION);
         wp_enqueue_style('terricel-transit-trips-admin');
         wp_add_inline_style('terricel-transit-trips-admin', '.terricel-trip-grid,.terricel-group-details-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 16px}.terricel-trip-grid p,.terricel-group-details-grid p{margin-top:0}.terricel-trip-details-layout{display:grid;gap:18px}.terricel-trip-school-row{display:grid;grid-template-columns:minmax(240px,1fr) minmax(260px,1fr) auto;gap:14px;align-items:end;max-width:980px}.terricel-trip-school-field p{margin:0}.terricel-trip-school-field select{min-height:40px}.terricel-trip-group-action .button{min-height:40px;padding:4px 18px}.terricel-trip-schedule-grid{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:14px;max-width:1060px}.terricel-trip-time-card{border:1px solid #dcdcde;background:#fdfdfd;padding:12px;display:grid;gap:10px}.terricel-trip-time-card strong{font-size:13px}.terricel-trip-time-card label{display:grid;gap:4px;margin:0}.terricel-trip-time-card span{font-size:12px;color:#646970}.terricel-trip-estimate-help-wrap{position:relative;display:inline-flex;vertical-align:text-bottom}.terricel-trip-estimate-help{border:0;background:transparent;color:#2271b1;cursor:pointer;margin:0;padding:0;line-height:1}.terricel-trip-estimate-help .dashicons{font-size:16px;width:16px;height:16px;line-height:16px}.terricel-trip-estimate-help:focus{outline:1px solid #2271b1;outline-offset:1px;border-radius:50%}.terricel-trip-estimate-popover{position:absolute;z-index:1001;left:22px;top:-8px;width:280px;background:#1d2327;color:#fff;border-radius:3px;box-shadow:0 8px 18px rgba(0,0,0,.2);padding:8px 10px;font-size:12px;line-height:1.4}.terricel-trip-assignment-summary div{margin:0 0 3px}.terricel-trip-actuals{background:#f6f7f7;border-left:4px solid #2271b1;margin:4px 0 8px;padding:10px 12px}.terricel-trip-actuals-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 12px;margin-top:8px}.terricel-trip-actuals-grid label{display:grid;gap:4px;margin:0}.terricel-trip-actuals-grid span{color:#646970;font-size:12px}.terricel-trip-actuals-grid input{width:100%;min-height:34px}.terricel-trip-modified-by{color:#646970}.terricel-trip-time-card input{width:100%;max-width:100%;min-height:36px}.terricel-trip-time-card.terricel-trip-step-locked{opacity:.45;pointer-events:none}.terricel-publish-gate{clear:both;color:#b32d2e;margin:8px 0 0}.terricel-trip-assignments select,.terricel-group-details-grid select,.terricel-group-details-grid input{max-width:100%;width:100%}.terricel-required{color:#b32d2e}.terricel-address-lookup{position:relative}.terricel-address-suggestions{position:absolute;z-index:1000;left:0;right:0;top:100%;background:#fff;border:1px solid #8c8f94;box-shadow:0 8px 16px rgba(0,0,0,.12);max-height:260px;overflow:auto}.terricel-address-suggestion{display:block;width:100%;padding:9px 11px;border:0;border-bottom:1px solid #f0f0f1;background:#fff;text-align:left;cursor:pointer}.terricel-address-suggestion:hover,.terricel-address-suggestion:focus{background:#f6f7f7}.terricel-address-suggestion strong{display:block}.terricel-address-suggestion span{display:block;color:#646970;font-size:12px}.terricel-route-options{margin:8px 0 14px}.terricel-route-options summary{cursor:pointer;color:#2271b1}.terricel-route-summary{background:#f6f7f7;border:1px solid #dcdcde;padding:8px 10px;margin:8px 0}.terricel-route-summary p{margin:0 0 4px}.terricel-route-option{display:grid;grid-template-columns:90px 1fr;gap:8px;border-top:1px solid #dcdcde;padding:8px 0}.terricel-route-option:first-child{border-top:0}.terricel-route-option strong{display:block}.terricel-route-option span{color:#646970}.terricel-route-selected{color:#008a20;font-weight:600}.terricel-trip-conflict-dialog{position:fixed;z-index:100000;inset:0;background:rgba(29,35,39,.45);display:flex;align-items:center;justify-content:center;padding:24px}.terricel-trip-conflict-dialog[hidden]{display:none}.terricel-trip-conflict-card{background:#fff;border:1px solid #c3c4c7;box-shadow:0 16px 38px rgba(0,0,0,.28);max-width:680px;width:100%;padding:20px}.terricel-trip-conflict-card h3{margin-top:0}.terricel-trip-conflict-card ul{list-style:disc;margin-left:22px;max-height:260px;overflow:auto}.terricel-trip-conflict-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:16px}.terricel-trip-conflict-confirm{background:#b32d2e!important;border-color:#8a2424!important;color:#fff!important}.terricel-trip-conflict-confirm.terricel-pulse{animation:terricelTripConflictPulse 1s infinite}.terricel-trip-conflict-confirm.terricel-confirmed{background:#008a20!important;border-color:#007017!important}.terricel-trip-conflict-confirm.terricel-confirmed:before{content:"\\f147";font-family:dashicons;vertical-align:middle;margin-right:4px}@keyframes terricelTripConflictPulse{0%,100%{box-shadow:0 0 0 0 rgba(179,45,46,.55)}50%{box-shadow:0 0 0 8px rgba(179,45,46,0)}}.terricel-group-contact-links{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 0}.terricel-group-contact-links a{text-decoration:none}.terricel-group-contact-links .dashicons{vertical-align:text-bottom}.terricel-trips-back-link{margin:0 0 12px}.terricel-inline-group-panel{border:1px solid #dcdcde;background:#fff;padding:14px;margin:0;max-width:980px}.terricel-inline-group-panel-header{display:flex;align-items:baseline;gap:10px;margin:0 0 12px}.terricel-inline-group-panel-header span{color:#646970}.terricel-inline-group-actions{margin:14px 0 0;display:flex;gap:8px;align-items:center}.terricel-trip-panel-locked .inside{opacity:.45;pointer-events:none}.terricel-trip-panel-locked:after{content:"Complete the previous trip step to continue.";display:block;margin:0 12px 12px;color:#646970;font-style:italic}@media (max-width:1100px){.terricel-trip-school-row{grid-template-columns:1fr 1fr}.terricel-trip-group-action{grid-column:1 / -1}.terricel-trip-schedule-grid{grid-template-columns:repeat(2,minmax(180px,1fr))}}@media (max-width:782px){.terricel-trip-school-row,.terricel-trip-schedule-grid{grid-template-columns:1fr}.terricel-inline-group-panel-header,.terricel-inline-group-actions,.terricel-trip-conflict-actions{align-items:stretch;flex-direction:column}.terricel-trip-group-action .button{width:100%;text-align:center}.terricel-trip-estimate-popover{left:auto;right:0;top:20px}}');
-        wp_add_inline_style('terricel-transit-trips-admin', '.terricel-trip-conflict-status{display:inline-flex;align-items:center;gap:6px;margin:12px 0 0;padding:7px 10px;border-left:4px solid #008a20;background:#f0f6ef;color:#005c12;font-weight:600}.terricel-trip-conflict-status:before{content:"\\f147";font-family:dashicons;font-size:18px;line-height:1}.terricel-trip-conflict-driver{margin:0 0 14px}.terricel-trip-conflict-driver strong{display:block;margin:0 0 6px}.terricel-trip-conflict-driver ul{margin-top:0}');
+        wp_add_inline_style('terricel-transit-trips-admin', '.terricel-trip-driver-cell{display:grid;grid-template-columns:minmax(220px,1fr) minmax(230px,auto);gap:10px;align-items:center}.terricel-trip-driver-cell select{min-width:0}.terricel-trip-conflict-status{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:6px 10px;border-left:4px solid #008a20;background:#f0f6ef;color:#005c12;font-weight:600;white-space:nowrap}.terricel-trip-conflict-status:before{content:"\\f147";font-family:dashicons;font-size:18px;line-height:1}.terricel-trip-conflict-driver{margin:0 0 14px}.terricel-trip-conflict-driver strong{display:block;margin:0 0 6px}.terricel-trip-conflict-driver ul{margin-top:0}@media (max-width:1100px){.terricel-trip-driver-cell{grid-template-columns:1fr}.terricel-trip-conflict-status{white-space:normal}}');
 
         if (self::TRIP_POST_TYPE !== $screen->post_type) {
             return;
@@ -1103,8 +1111,8 @@ var school=document.getElementById("terricel_trip_school_id");var group=document
 var toggle=document.getElementById("terricel_trip_add_group_toggle");var panel=document.getElementById("terricel_trip_add_group_panel");var save=document.getElementById("terricel_trip_save_group");var cancel=document.getElementById("terricel_trip_cancel_group");var message=document.getElementById("terricel_trip_group_message");
 var destinationPanel=document.getElementById("terricel_trip_destination");var schedulePanel=document.getElementById("terricel_trip_schedule");var assignmentsPanel=document.getElementById("terricel_trip_assignments");var publishButton=document.getElementById("publish");var publishBox=document.getElementById("publishing-action");
 var locationName=document.getElementById("terricel_trip_location_name");var destination=document.getElementById("terricel_trip_destination_address");var mileage=document.getElementById("terricel_trip_estimated_mileage");var travelMinutes=document.getElementById("terricel_trip_estimated_travel_minutes");var routeOptions=document.getElementById("terricel_trip_route_options");var routeOptionsList=document.getElementById("terricel_trip_route_options_list");
-var conflictDialog=document.getElementById("terricel_trip_conflict_dialog");var conflictList=document.getElementById("terricel_trip_conflict_list");var conflictConfirm=document.getElementById("terricel_trip_confirm_conflict_button");var conflictClose=document.getElementById("terricel_trip_close_conflict_dialog");var conflictInput=document.getElementById("terricel_trip_confirm_conflicts_hidden");var conflictStatus=document.getElementById("terricel_trip_conflict_status");
-var estimateTimer=0;var conflictTimer=0;var routeConflicts=[];var routeConflictSignature="";var routeConflictsConfirmed=false;
+var conflictDialog=document.getElementById("terricel_trip_conflict_dialog");var conflictList=document.getElementById("terricel_trip_conflict_list");var conflictConfirm=document.getElementById("terricel_trip_confirm_conflict_button");var conflictClose=document.getElementById("terricel_trip_close_conflict_dialog");var conflictInput=document.getElementById("terricel_trip_confirm_conflicts_hidden");
+var estimateTimer=0;var conflictTimer=0;var busAvailabilityTimer=0;var routeConflicts=[];var routeConflictSignature="";var routeConflictsConfirmed=false;var unavailableBusIds=[];
 var publishNotice=document.createElement("p");publishNotice.className="description terricel-publish-gate";publishNotice.textContent=config.strings.publishBlocked;if(publishBox){publishBox.insertAdjacentElement("afterend",publishNotice);}
 function detailsReady(){return parseInt(school.value,10)>0&&parseInt(group.value,10)>0;}
 function destinationReady(){return detailsReady()&&locationName&&locationName.value.trim()&&destination&&destination.value.trim()&&travelMinutes&&parseInt(travelMinutes.value,10)>0;}
@@ -1120,31 +1128,35 @@ function clearPanel(){if(!panel){return;}panel.querySelectorAll("input").forEach
 function recalcArrival(force){var estimate=travelMinutes?parseInt(travelMinutes.value,10):0;var next=addMinutes(value("terricel_trip_pickup_date"),value("terricel_trip_pickup_time"),estimate);if(next){setInput("terricel_trip_arrival_date",next.date,force?"force":undefined);setInput("terricel_trip_arrival_time",next.time,force?"force":undefined);}}
 function recalcReturn(force){var estimate=travelMinutes?parseInt(travelMinutes.value,10):0;var next=addMinutes(value("terricel_trip_departure_date"),value("terricel_trip_departure_time"),estimate);if(next){setInput("terricel_trip_return_date",next.date,force?"force":undefined);setInput("terricel_trip_return_time",next.time,force?"force":undefined);}}
 function refreshScheduleDependents(changedName,force){if(changedName==="terricel_trip_pickup_date"||changedName==="terricel_trip_pickup_time"){recalcArrival(force);if(changedName==="terricel_trip_pickup_date"){recalcReturn(force);}}else if(changedName==="terricel_trip_departure_date"||changedName==="terricel_trip_departure_time"){recalcReturn(force);}else{recalcArrival();recalcReturn();}}
-function syncDates(){var pickupDate=document.querySelector("[name='terricel_trip_pickup_date']");["arrival","departure","return"].forEach(function(key){["date","time"].forEach(function(part){var input=document.querySelector("[name='terricel_trip_"+key+"_"+part+"']");if(input){input.addEventListener("input",function(){input.dataset.terricelDefaulted="0";});}});});document.querySelectorAll("#terricel_trip_schedule input").forEach(function(input){input.addEventListener("change",function(){var changedName=input.name||"";if(pickupDate&&pickupDate.value&&changedName==="terricel_trip_pickup_date"){["arrival","departure","return"].forEach(function(key){setInput("terricel_trip_"+key+"_date",pickupDate.value);});}refreshScheduleDependents(changedName,changedName==="terricel_trip_pickup_date"||changedName==="terricel_trip_pickup_time"||changedName==="terricel_trip_departure_date"||changedName==="terricel_trip_departure_time");checkDriverConflicts();syncWorkflow();});});}
+function syncDates(){var pickupDate=document.querySelector("[name='terricel_trip_pickup_date']");["arrival","departure","return"].forEach(function(key){["date","time"].forEach(function(part){var input=document.querySelector("[name='terricel_trip_"+key+"_"+part+"']");if(input){input.addEventListener("input",function(){input.dataset.terricelDefaulted="0";});}});});document.querySelectorAll("#terricel_trip_schedule input").forEach(function(input){input.addEventListener("change",function(){var changedName=input.name||"";if(pickupDate&&pickupDate.value&&changedName==="terricel_trip_pickup_date"){["arrival","departure","return"].forEach(function(key){setInput("terricel_trip_"+key+"_date",pickupDate.value);});}refreshScheduleDependents(changedName,changedName==="terricel_trip_pickup_date"||changedName==="terricel_trip_pickup_time"||changedName==="terricel_trip_departure_date"||changedName==="terricel_trip_departure_time");refreshBusAvailability();checkDriverConflicts();syncWorkflow();});});}
 function syncTimeInputs(){document.querySelectorAll(".terricel-trip-time-input").forEach(function(display){var target=document.querySelector("[name='"+display.dataset.timeTarget+"']");if(!target){return;}function apply(normalize,notify){if(!display.value.trim()){if(target.value){target.value="";if(notify){target.dispatchEvent(new Event("change",{bubbles:true}));}}target.dataset.terricelDefaulted="0";return;}var parsed=parseFriendlyTime(display.value);if(parsed){var changed=target.value!==parsed;target.value=parsed;target.dataset.terricelDefaulted=display.dataset.terricelDefaulted==="1"?"1":"0";if(normalize){display.value=formatFriendlyTime(parsed);}if(changed&&notify){target.dispatchEvent(new Event("change",{bubbles:true}));}}}display.addEventListener("input",function(){display.dataset.terricelDefaulted="0";if(target){target.dataset.terricelDefaulted="0";}apply(false,false);});display.addEventListener("change",function(){apply(true,true);});display.addEventListener("blur",function(){apply(true,true);});});}
 function initEstimateHelp(){document.querySelectorAll(".terricel-trip-estimate-help").forEach(function(button){var popover=button.parentElement?button.parentElement.querySelector(".terricel-trip-estimate-popover"):null;if(!popover){return;}function close(){popover.hidden=true;button.setAttribute("aria-expanded","false");}button.addEventListener("click",function(event){event.preventDefault();event.stopPropagation();var isOpen=!popover.hidden;document.querySelectorAll(".terricel-trip-estimate-popover").forEach(function(item){item.hidden=true;});document.querySelectorAll(".terricel-trip-estimate-help").forEach(function(item){item.setAttribute("aria-expanded","false");});popover.hidden=isOpen;button.setAttribute("aria-expanded",isOpen?"false":"true");});document.addEventListener("click",function(event){if(!button.parentElement||!button.parentElement.contains(event.target)){close();}});document.addEventListener("keydown",function(event){if(event.key==="Escape"){close();}});});}
 function renderRouteOptions(estimate){if(!config.googleDiagnostics||!routeOptions||!routeOptionsList){return;}routeOptionsList.innerHTML="";var items=estimate&&estimate.route_options?estimate.route_options:[];if(!items.length){routeOptions.hidden=true;return;}var summary=document.createElement("div");summary.className="terricel-route-summary";var from=document.createElement("p");from.textContent="Estimated from: "+(estimate.origin||"");var to=document.createElement("p");to.textContent="Estimated to: "+(estimate.destination||"");summary.appendChild(from);summary.appendChild(to);if(estimate.maps_url){var link=document.createElement("a");link.href=estimate.maps_url;link.target="_blank";link.rel="noopener";link.textContent="Open this same route in Google Maps";summary.appendChild(link);}routeOptionsList.appendChild(summary);items.forEach(function(item){var row=document.createElement("div");row.className="terricel-route-option";var label=document.createElement("strong");label.textContent="Route "+item.index+(item.selected?" - Selected":"");if(item.selected){label.className="terricel-route-selected";}var details=document.createElement("div");var title=document.createElement("strong");title.textContent=item.description||"Google route option";var facts=document.createElement("span");facts.textContent=item.minutes+" min one-way ("+item.buffered_minutes+" min with buffer), "+item.one_way_miles+" mi one-way, "+item.round_trip_miles+" mi round trip";details.appendChild(title);details.appendChild(facts);row.appendChild(label);row.appendChild(details);routeOptionsList.appendChild(row);});routeOptions.hidden=false;}
-function requestEstimate(force,forceTripTimes){if(!destination||!destination.value.trim()||parseInt(school.value,10)<1){syncWorkflow();return;}post("terricel_trip_destination_estimate",{school_id:school.value,destination:destination.value}).then(function(data){if(data.estimate){if(mileage&&(force||!mileage.value||mileage.dataset.terricelAuto==="1")){mileage.value=data.estimate.miles?String(Math.ceil(Number(data.estimate.miles))):"";mileage.dataset.terricelAuto="1";}if(travelMinutes&&(force||!travelMinutes.value||travelMinutes.dataset.terricelAuto==="1")){travelMinutes.value=data.estimate.minutes?String(Math.ceil(Number(data.estimate.minutes))):"";travelMinutes.dataset.terricelAuto="1";}renderRouteOptions(data.estimate);recalcArrival(!!forceTripTimes);recalcReturn(!!forceTripTimes);checkDriverConflicts();syncWorkflow();}}).catch(function(error){renderRouteOptions(null);if(window.console){window.console.warn("Terricel trip estimate failed",error);}syncWorkflow();});}
+function requestEstimate(force,forceTripTimes){if(!destination||!destination.value.trim()||parseInt(school.value,10)<1){syncWorkflow();return;}post("terricel_trip_destination_estimate",{school_id:school.value,destination:destination.value}).then(function(data){if(data.estimate){if(mileage&&(force||!mileage.value||mileage.dataset.terricelAuto==="1")){mileage.value=data.estimate.miles?String(Math.ceil(Number(data.estimate.miles))):"";mileage.dataset.terricelAuto="1";}if(travelMinutes&&(force||!travelMinutes.value||travelMinutes.dataset.terricelAuto==="1")){travelMinutes.value=data.estimate.minutes?String(Math.ceil(Number(data.estimate.minutes))):"";travelMinutes.dataset.terricelAuto="1";}renderRouteOptions(data.estimate);recalcArrival(!!forceTripTimes);recalcReturn(!!forceTripTimes);refreshBusAvailability();checkDriverConflicts();syncWorkflow();}}).catch(function(error){renderRouteOptions(null);if(window.console){window.console.warn("Terricel trip estimate failed",error);}syncWorkflow();});}
 function scheduleEstimate(force,forceTripTimes){window.clearTimeout(estimateTimer);estimateTimer=window.setTimeout(function(){requestEstimate(force,forceTripTimes);},650);}
 function selectedDriverIds(){return Array.prototype.slice.call(document.querySelectorAll("#terricel_trip_assignment_rows select[name*='[driver_id]']")).map(function(select){return parseInt(select.value,10)||0;}).filter(function(id){return id>0;});}
 function makeConflictSignature(conflicts){return JSON.stringify((conflicts||[]).map(function(item){return [item.driver_id||0,item.route_id||0,item.date||"",item.run_key||"",item.start_time||"",item.end_time||""].join("|");}).sort());}
-function setConflictStatus(text){if(!conflictStatus){return;}conflictStatus.textContent=text||"";conflictStatus.hidden=!text;}
+function conflictStatuses(){return Array.prototype.slice.call(document.querySelectorAll("#terricel_trip_assignment_rows .terricel-trip-conflict-status"));}
+function setConflictStatus(text){conflictStatuses().forEach(function(status){status.textContent=text||"";status.hidden=!text;});}
 function routeConflictText(conflict){var date=conflict.date||"";var run=conflict.run_name||conflict.run_key||"Run";var route=conflict.route_name||"Route";var time=(conflict.start_time||"")+"-"+(conflict.end_time||"");return route+" - "+date+" "+run+" ("+time+")";}
 function groupedConflicts(conflicts){return (conflicts||[]).reduce(function(groups,conflict){var name=conflict.driver_name||"Driver";if(!groups[name]){groups[name]=[];}groups[name].push(conflict);return groups;},{});}
 function setConflictConfirmation(confirmed){routeConflictsConfirmed=!!confirmed;if(conflictInput){conflictInput.value=routeConflictsConfirmed?"1":"";}if(conflictConfirm){conflictConfirm.classList.toggle("terricel-confirmed",routeConflictsConfirmed);conflictConfirm.classList.toggle("terricel-pulse",routeConflicts.length&&!routeConflictsConfirmed);conflictConfirm.textContent=routeConflictsConfirmed?config.strings.conflictConfirmed:"Confirm Route Vacancies";}if(routeConflicts.length&&routeConflictsConfirmed){setConflictStatus(config.strings.conflictConfirmed);}else if(!routeConflicts.length){setConflictStatus(config.strings.noConflicts);}else{setConflictStatus("");}syncWorkflow();}
 function renderConflictDialog(conflicts){if(!conflictDialog||!conflictList){return;}conflictList.innerHTML="";var groups=groupedConflicts(conflicts);Object.keys(groups).forEach(function(driverName){var driverWrap=document.createElement("li");driverWrap.className="terricel-trip-conflict-driver";var title=document.createElement("strong");title.textContent=driverName;var routes=document.createElement("ul");groups[driverName].forEach(function(conflict){var item=document.createElement("li");item.textContent=routeConflictText(conflict);routes.appendChild(item);});driverWrap.appendChild(title);driverWrap.appendChild(routes);conflictList.appendChild(driverWrap);});conflictDialog.hidden=!conflicts.length;if(conflicts.length&&conflictConfirm){conflictConfirm.focus();}}
 function clearRouteConflicts(){routeConflicts=[];routeConflictSignature="";if(conflictDialog){conflictDialog.hidden=true;}setConflictConfirmation(false);}
 function checkDriverConflicts(){window.clearTimeout(conflictTimer);conflictTimer=window.setTimeout(function(){var drivers=selectedDriverIds();if(!drivers.length||!allDatesReady()){clearRouteConflicts();return;}post("terricel_trip_driver_conflicts",{post_id:value("post_ID"),drivers:drivers.join(","),pickup_date:value("terricel_trip_pickup_date"),pickup_time:value("terricel_trip_pickup_time"),return_date:value("terricel_trip_return_date"),return_time:value("terricel_trip_return_time")}).then(function(data){var conflicts=data.conflicts||[];var signature=makeConflictSignature(conflicts);if(signature!==routeConflictSignature){routeConflictsConfirmed=false;if(conflictInput){conflictInput.value="";}}routeConflicts=conflicts;routeConflictSignature=signature;if(conflicts.length){renderConflictDialog(conflicts);setConflictConfirmation(routeConflictsConfirmed);}else{clearRouteConflicts();}}).catch(function(error){if(window.console){window.console.warn("Terricel trip driver conflict check failed",error);}clearRouteConflicts();});},300);}
-function syncBusSlots(){var needed=document.getElementById("terricel_trip_buses_needed");var rows=document.getElementById("terricel_trip_assignment_rows");var template=document.getElementById("terricel_trip_assignment_row_template");if(!needed||!rows||!template){return;}function slotRows(){return Array.prototype.slice.call(rows.querySelectorAll(".terricel-trip-assignment-slot-row"));}function apply(){var count=Math.max(0,Math.min(50,parseInt(needed.value,10)||0));var slots=slotRows();while(slots.length>count){var row=slots.pop();var next=row.nextElementSibling;if(next&&next.classList.contains("terricel-trip-actuals-row")){rows.removeChild(next);}rows.removeChild(row);}slots=slotRows();while(slots.length<count){var index=slots.length;var holder=document.createElement("tbody");holder.innerHTML=template.innerHTML.replace(/__INDEX__/g,String(index)).replace(/__NUMBER__/g,String(index+1));Array.prototype.slice.call(holder.children).forEach(function(child){rows.appendChild(child);});slots=slotRows();}checkDriverConflicts();}needed.addEventListener("input",apply);needed.addEventListener("change",apply);rows.addEventListener("change",function(event){if(event.target&&event.target.matches("select[name*='[driver_id]']")){checkDriverConflicts();}});apply();}
+function busSelects(){return Array.prototype.slice.call(document.querySelectorAll("#terricel_trip_assignment_rows select[name*='[bus_id]']"));}
+function syncBusOptions(){var changed=false;var selectedCounts={};busSelects().forEach(function(select){var value=parseInt(select.value,10)||0;if(value>0){selectedCounts[value]=(selectedCounts[value]||0)+1;}});busSelects().forEach(function(select){var ownValue=parseInt(select.value,10)||0;Array.prototype.slice.call(select.options).forEach(function(opt){var id=parseInt(opt.value,10)||0;if(id<1){opt.disabled=false;return;}var duplicateElsewhere=(selectedCounts[id]||0)>0&&id!==ownValue;var unavailable=unavailableBusIds.indexOf(id)>-1;opt.disabled=duplicateElsewhere||unavailable;});if(ownValue>0&&((selectedCounts[ownValue]||0)>1||unavailableBusIds.indexOf(ownValue)>-1)){select.value="0";changed=true;}});if(changed){syncBusOptions();}}
+function refreshBusAvailability(){window.clearTimeout(busAvailabilityTimer);busAvailabilityTimer=window.setTimeout(function(){if(!allDatesReady()){unavailableBusIds=[];syncBusOptions();return;}post("terricel_trip_bus_availability",{post_id:value("post_ID"),pickup_date:value("terricel_trip_pickup_date"),pickup_time:value("terricel_trip_pickup_time"),return_date:value("terricel_trip_return_date"),return_time:value("terricel_trip_return_time")}).then(function(data){unavailableBusIds=(data.unavailable_bus_ids||[]).map(function(id){return parseInt(id,10)||0;}).filter(function(id){return id>0;});syncBusOptions();}).catch(function(error){if(window.console){window.console.warn("Terricel trip bus availability check failed",error);}unavailableBusIds=[];syncBusOptions();});},250);}
+function syncBusSlots(){var needed=document.getElementById("terricel_trip_buses_needed");var rows=document.getElementById("terricel_trip_assignment_rows");var template=document.getElementById("terricel_trip_assignment_row_template");if(!needed||!rows||!template){return;}function slotRows(){return Array.prototype.slice.call(rows.querySelectorAll(".terricel-trip-assignment-slot-row"));}function apply(){var count=Math.max(0,Math.min(50,parseInt(needed.value,10)||0));var slots=slotRows();while(slots.length>count){var row=slots.pop();var next=row.nextElementSibling;if(next&&next.classList.contains("terricel-trip-actuals-row")){rows.removeChild(next);}rows.removeChild(row);}slots=slotRows();while(slots.length<count){var index=slots.length;var holder=document.createElement("tbody");holder.innerHTML=template.innerHTML.replace(/__INDEX__/g,String(index)).replace(/__NUMBER__/g,String(index+1));Array.prototype.slice.call(holder.children).forEach(function(child){rows.appendChild(child);});slots=slotRows();}syncBusOptions();checkDriverConflicts();}needed.addEventListener("input",apply);needed.addEventListener("change",apply);rows.addEventListener("change",function(event){if(event.target&&event.target.matches("select[name*='[driver_id]']")){checkDriverConflicts();}if(event.target&&event.target.matches("select[name*='[bus_id]']")){syncBusOptions();}});apply();}
 function initAddressLookup(){function setup(input,menu,mode){if(!input||!menu){return;}var timer=0;function hide(){menu.hidden=true;menu.innerHTML="";}function showMessage(text){menu.innerHTML="<div class=\"terricel-address-suggestion\"><span></span></div>";menu.querySelector("span").textContent=text;menu.hidden=false;}function render(items){menu.innerHTML="";if(!items.length){showMessage(config.strings.addressEmpty);return;}items.forEach(function(item){var button=document.createElement("button");button.type="button";button.className="terricel-address-suggestion";button.dataset.placeId=item.placeId||"";button.dataset.address=item.address||"";button.dataset.name=item.name||"";var main=document.createElement("strong");main.textContent=item.mainText||item.text;var secondary=document.createElement("span");secondary.textContent=item.secondaryText||"";button.appendChild(main);button.appendChild(secondary);menu.appendChild(button);});menu.hidden=false;}input.addEventListener("input",function(){input.dataset.terricelManual="1";window.clearTimeout(timer);var text=input.value.trim();if(text.length<3){hide();syncWorkflow();return;}if(mode==="address"||destination&&destination.value.trim()){scheduleEstimate(true,true);}timer=window.setTimeout(function(){showMessage(config.strings.addressLoading);post("terricel_trip_address_suggestions",{input:text,school_id:school.value,mode:mode}).then(function(data){render(data.suggestions||[]);}).catch(function(error){showMessage(error.message||config.strings.addressMissingKey);});},350);syncWorkflow();});menu.addEventListener("click",function(event){var button=event.target.closest(".terricel-address-suggestion");if(!button){return;}if(button.dataset.name&&locationName){locationName.value=button.dataset.name;}if(button.dataset.address&&destination){destination.value=button.dataset.address;}hide();requestEstimate(true,true);syncWorkflow();});document.addEventListener("click",function(event){if(!menu.contains(event.target)&&event.target!==input){hide();}});}setup(locationName,document.getElementById("terricel_trip_location_suggestions"),"location");setup(destination,document.getElementById("terricel_trip_address_suggestions"),"address");if(destination){destination.addEventListener("change",function(){requestEstimate(true,true);});destination.addEventListener("blur",function(){requestEstimate(true,true);});}if(locationName){locationName.addEventListener("change",function(){scheduleEstimate(true,true);});locationName.addEventListener("blur",function(){scheduleEstimate(true,true);});}}
-school.addEventListener("change",function(){if(panel){panel.hidden=true;}loadGroups();requestEstimate(true,true);});group.addEventListener("change",syncWorkflow);if(locationName){locationName.addEventListener("input",syncWorkflow);}if(mileage){mileage.addEventListener("input",function(){mileage.dataset.terricelAuto="0";});}if(travelMinutes){travelMinutes.addEventListener("input",function(){travelMinutes.dataset.terricelAuto="0";recalcArrival(true);recalcReturn(true);checkDriverConflicts();syncWorkflow();});travelMinutes.addEventListener("change",function(){travelMinutes.dataset.terricelAuto="0";recalcArrival(true);recalcReturn(true);checkDriverConflicts();syncWorkflow();});}
+school.addEventListener("change",function(){if(panel){panel.hidden=true;}loadGroups();requestEstimate(true,true);});group.addEventListener("change",syncWorkflow);if(locationName){locationName.addEventListener("input",syncWorkflow);}if(mileage){mileage.addEventListener("input",function(){mileage.dataset.terricelAuto="0";});}if(travelMinutes){travelMinutes.addEventListener("input",function(){travelMinutes.dataset.terricelAuto="0";recalcArrival(true);recalcReturn(true);refreshBusAvailability();checkDriverConflicts();syncWorkflow();});travelMinutes.addEventListener("change",function(){travelMinutes.dataset.terricelAuto="0";recalcArrival(true);recalcReturn(true);refreshBusAvailability();checkDriverConflicts();syncWorkflow();});}
 if(toggle&&panel){toggle.addEventListener("click",function(){if(parseInt(school.value,10)<1){setMessage(config.strings.selectSchool,true);return;}panel.hidden=!panel.hidden;if(!panel.hidden){var name=document.getElementById("terricel_trip_new_group_name");if(name){name.focus();}}});}
 if(cancel&&panel){cancel.addEventListener("click",function(){panel.hidden=true;setMessage("");});}
 if(conflictConfirm){conflictConfirm.addEventListener("click",function(){setConflictConfirmation(true);if(conflictDialog){conflictDialog.hidden=true;}});}
 if(conflictClose){conflictClose.addEventListener("click",function(){if(conflictDialog){conflictDialog.hidden=true;}});}
 if(conflictDialog){conflictDialog.addEventListener("click",function(event){if(event.target===conflictDialog){conflictDialog.hidden=true;}});}
 if(save){save.addEventListener("click",function(){var name=document.getElementById("terricel_trip_new_group_name");var first=document.getElementById("terricel_trip_new_group_advisor_first_name");var last=document.getElementById("terricel_trip_new_group_advisor_last_name");var required=[name,first,last];var missing=required.find(function(input){return !input||!input.value.trim();});if(missing){setMessage(config.strings.requiredGroup,true);missing.focus();return;}if(parseInt(school.value,10)<1){setMessage(config.strings.selectSchool,true);return;}save.disabled=true;setMessage(config.strings.saving,false);post("terricel_create_trip_group",{school_id:school.value,group_name:name.value,advisor_first_name:first.value,advisor_last_name:last.value,advisor_main_phone:(document.getElementById("terricel_trip_new_group_advisor_main_phone")||{}).value||"",advisor_main_phone_extension:(document.getElementById("terricel_trip_new_group_advisor_main_phone_extension")||{}).value||"",advisor_emergency_phone:(document.getElementById("terricel_trip_new_group_advisor_emergency_phone")||{}).value||"",advisor_email:(document.getElementById("terricel_trip_new_group_advisor_email")||{}).value||""}).then(function(data){if(data.group){var row=option(data.group.id,data.group.label);row.selected=true;group.appendChild(row);group.value=String(data.group.id);}clearPanel();if(panel){panel.hidden=true;}setMessage(config.strings.saved,false);syncWorkflow();}).catch(function(error){setMessage(error.message,true);}).finally(function(){save.disabled=false;});});}
-syncTimeInputs();syncDates();syncBusSlots();initEstimateHelp();initAddressLookup();if(destination&&destination.value.trim()&&parseInt(school.value,10)>0){requestEstimate(true,false);}checkDriverConflicts();syncWorkflow();
+syncTimeInputs();syncDates();syncBusSlots();initEstimateHelp();initAddressLookup();if(destination&&destination.value.trim()&&parseInt(school.value,10)>0){requestEstimate(true,false);}refreshBusAvailability();checkDriverConflicts();syncWorkflow();
 });
 }(__CONFIG__));
 JS;
@@ -1418,7 +1430,13 @@ JS;
     }
 
     private function get_trip_eligible_buses($trip_id, $selected = 0) {
-        $buses = get_posts(
+        return array_values(array_filter($this->get_trip_bus_pool(), function ($bus) use ($trip_id, $selected) {
+            return absint($bus->ID) === absint($selected) || !$this->bus_has_trip_conflict($bus->ID, $trip_id);
+        }));
+    }
+
+    private function get_trip_bus_pool() {
+        return get_posts(
             array(
                 'post_type'      => Terricel_Logistics_Shared_Data::BUS_POST_TYPE,
                 'post_status'    => 'publish',
@@ -1429,10 +1447,6 @@ JS;
                 'meta_value'     => 1,
             )
         );
-
-        return array_values(array_filter($buses, function ($bus) use ($trip_id, $selected) {
-            return absint($bus->ID) === absint($selected) || !$this->bus_has_trip_conflict($bus->ID, $trip_id);
-        }));
     }
 
     private function bus_has_trip_conflict($bus_id, $trip_id) {
@@ -1441,16 +1455,27 @@ JS;
         $end_date = get_post_meta($trip_id, '_terricel_trip_return_date', true) ?: $start_date;
         $end_time = get_post_meta($trip_id, '_terricel_trip_return_time', true) ?: '23:59';
 
+        return $this->bus_has_trip_conflict_for_window($bus_id, $trip_id, $start_date, $start_time, $end_date, $end_time);
+    }
+
+    private function bus_has_trip_conflict_for_window($bus_id, $trip_id, $start_date, $start_time, $end_date, $end_time) {
+        $bus_id = absint($bus_id);
+        $trip_id = absint($trip_id);
+        $start_date = $this->sanitize_date($start_date);
+        $start_time = $this->sanitize_time($start_time);
+        $end_date = $this->sanitize_date($end_date) ?: $start_date;
+        $end_time = $this->sanitize_time($end_time) ?: '23:59';
+
         if (!$start_date || !$start_time) {
             return false;
         }
 
-        foreach ($this->get_upcoming_trips(365) as $trip) {
-            if (absint($trip->ID) === absint($trip_id)) {
+        foreach ($this->get_all_trip_posts() as $trip) {
+            if (absint($trip->ID) === $trip_id) {
                 continue;
             }
             foreach ($this->get_trip_assignments($trip->ID) as $assignment) {
-                if (absint($assignment['bus_id']) !== absint($bus_id)) {
+                if (absint($assignment['bus_id']) !== $bus_id) {
                     continue;
                 }
                 $other_start_date = get_post_meta($trip->ID, '_terricel_trip_pickup_date', true);
@@ -1464,6 +1489,29 @@ JS;
         }
 
         return false;
+    }
+
+    private function get_unavailable_bus_ids_for_window($trip_id, $start_date, $start_time, $end_date, $end_time) {
+        $unavailable = array();
+        foreach ($this->get_trip_bus_pool() as $bus) {
+            if ($this->bus_has_trip_conflict_for_window($bus->ID, $trip_id, $start_date, $start_time, $end_date, $end_time)) {
+                $unavailable[] = absint($bus->ID);
+            }
+        }
+
+        return array_values(array_unique($unavailable));
+    }
+
+    private function get_all_trip_posts() {
+        return get_posts(
+            array(
+                'post_type'      => self::TRIP_POST_TYPE,
+                'post_status'    => array('publish', 'draft', 'pending', 'future', 'private'),
+                'posts_per_page' => 500,
+                'orderby'        => 'date',
+                'order'          => 'DESC',
+            )
+        );
     }
 
     private function get_posts_for_select($post_type) {
@@ -1720,6 +1768,29 @@ JS;
         wp_send_json_success(
             array(
                 'conflicts' => $this->get_assignment_conflicts($trip_id, $assignments, $start_date, $start_time, $end_date, $end_time),
+            )
+        );
+    }
+
+    public function ajax_trip_bus_availability() {
+        if (!current_user_can(Terricel_Transit_Trips_Plugin::CAP_MANAGE_TRIPS)) {
+            wp_send_json_error(array('message' => __('You do not have permission to manage trips.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)), 403);
+        }
+
+        check_ajax_referer('terricel_trip_group_ajax', 'nonce');
+        $trip_id = absint($_POST['post_id'] ?? 0);
+        $start_date = $this->sanitize_date($_POST['pickup_date'] ?? '');
+        $start_time = $this->sanitize_time($_POST['pickup_time'] ?? '');
+        $end_date = $this->sanitize_date($_POST['return_date'] ?? '') ?: $start_date;
+        $end_time = $this->sanitize_time($_POST['return_time'] ?? '');
+
+        if (!$start_date || !$start_time || !$end_date || !$end_time) {
+            wp_send_json_success(array('unavailable_bus_ids' => array()));
+        }
+
+        wp_send_json_success(
+            array(
+                'unavailable_bus_ids' => $this->get_unavailable_bus_ids_for_window($trip_id, $start_date, $start_time, $end_date, $end_time),
             )
         );
     }

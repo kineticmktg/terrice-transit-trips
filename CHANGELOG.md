@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1 - 2026-07-25
+
+- Moved trip route conflict status beside each driver selector.
+- Prevented duplicate bus selections in the Trip editor and disabled buses booked on overlapping trips.
+
 ## 0.2.0 - 2026-07-25
 
 - Added Route Coverage-backed driver conflict checks, confirmation gating, and trip-created route vacancy handoff.
