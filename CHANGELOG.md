@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2 - 2026-07-25
+
+- Grouped Actuals time and mileage fields into stacked pairs that flow inline and wrap on smaller screens.
+
 ## 0.2.1 - 2026-07-25
 
 - Moved trip route conflict status beside each driver selector.
