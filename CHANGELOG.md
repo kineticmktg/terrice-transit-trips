@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.8 - 2026-07-25
+
+- Changed Trips by School PDF assignment details to stay nested directly under each trip row with bus, driver, pre-trip mileage, post-trip mileage, and total mileage columns.
+
 ## 0.2.7 - 2026-07-25
 
 - Simplified the Trips by School PDF columns to Pickup, School, Advisor, Destination, and Total Actual Mileage.
