@@ -30,11 +30,16 @@ class Terricel_Transit_Trips_Plugin {
         add_filter('terricel_logistics_role_capabilities', array($this, 'filter_role_capabilities'));
         add_filter('terricel_logistics_settings_tabs', array($this, 'filter_settings_tabs'));
         add_filter('terricel_logistics_modules', array($this, 'register_module'));
+        add_filter('terricel_logistics_report_types', array($this, 'filter_report_types'));
+        add_filter('terricel_logistics_report_filter_rows', array($this, 'filter_report_filter_rows'));
+        add_filter('terricel_logistics_build_report', array($this, 'build_report'), 10, 5);
+        add_action('terricel_logistics_render_report_filters', array($this, 'render_report_filters'), 10, 2);
         add_action('terricel_logistics_driver_dashboard_assignments', array($this, 'render_driver_dashboard_trips'), 10, 2);
         add_filter('terricel_logistics_driver_scheduled_pto_requests', array($this, 'pass_through_driver_pto_requests'));
         add_action('admin_post_terricel_trips_save_trip_settings', array($this, 'save_trip_settings'));
         add_action('admin_post_terricel_trips_save_integrations', array($this, 'save_integrations'));
         add_action('admin_post_terricel_trips_save_tools', array($this, 'save_tools_settings'));
+        add_action('wp_ajax_terricel_trip_report_groups', array($this, 'ajax_report_groups'));
         add_action('terricel_logistics_render_settings_tab_trips', array($this, 'render_trip_settings_tab'));
         add_action('terricel_logistics_render_settings_tab_integrations', array($this, 'render_integrations_tab'));
         add_action('terricel_logistics_render_tools_settings', array($this, 'render_tools_tab_section'));
@@ -185,6 +190,38 @@ class Terricel_Transit_Trips_Plugin {
         }
 
         return $modules;
+    }
+
+    public function filter_report_types($types) {
+        $types['trips_by_school'] = __('Trips by School', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN);
+        return $types;
+    }
+
+    public function filter_report_filter_rows($rows) {
+        $rows['trips_by_school'] = 'terricel-report-filter-trip';
+        return $rows;
+    }
+
+    public function render_report_filters($selected_type, $report_query) {
+        if ($this->module) {
+            $this->module->render_report_filters($selected_type, is_array($report_query) ? $report_query : array());
+        }
+    }
+
+    public function build_report($report, $type, $start_date, $end_date, $request) {
+        if ('trips_by_school' !== $type || !$this->module) {
+            return $report;
+        }
+
+        return $this->module->build_trips_by_school_report($start_date, $end_date, is_array($request) ? $request : array());
+    }
+
+    public function ajax_report_groups() {
+        if (!$this->module) {
+            wp_send_json_error(array('message' => __('Trips module is not available.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)), 500);
+        }
+
+        $this->module->ajax_report_groups();
     }
 
     public function render_trip_settings_tab() {

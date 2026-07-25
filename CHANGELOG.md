@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.6 - 2026-07-25
+
+- Added a Trips by School PDF report type to core Reporting.
+- Added School and School Group report filters, with group options limited to groups that had trips in the selected date range and selected school.
+- Grouped the generated PDF by school group rather than by school.
+
 ## 0.2.5 - 2026-07-25
 
 - Moved driver trip assignments into the core My Driver Dashboard Assignments section so they render once in the requested order.

@@ -534,6 +534,220 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         echo '</tbody></table>';
     }
 
+    public function render_report_filters($selected_type, $report_query) {
+        $selected_school_id = isset($report_query['terricel_report_trip_school_id']) ? absint($report_query['terricel_report_trip_school_id']) : 0;
+        $selected_group_id = isset($report_query['terricel_report_trip_group_id']) ? absint($report_query['terricel_report_trip_group_id']) : 0;
+        $start_date = isset($report_query['terricel_report_start_date']) ? $this->sanitize_date($report_query['terricel_report_start_date']) : current_time('Y-m-d');
+        $end_date = isset($report_query['terricel_report_end_date']) ? $this->sanitize_date($report_query['terricel_report_end_date']) : $start_date;
+        $groups = $this->get_trip_report_groups_for_range($start_date, $end_date, $selected_school_id);
+
+        echo '<tr class="terricel-report-filter-trip">';
+        echo '<th scope="row"><label for="terricel_report_trip_school_id">' . esc_html__('School', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</label></th>';
+        echo '<td><select id="terricel_report_trip_school_id" name="terricel_report_trip_school_id">';
+        echo '<option value="0">' . esc_html__('All schools', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</option>';
+        foreach ($this->get_trip_report_schools_for_range($start_date, $end_date) as $school) {
+            echo '<option value="' . esc_attr($school['id']) . '"' . selected($selected_school_id, $school['id'], false) . '>' . esc_html($school['label']) . '</option>';
+        }
+        echo '</select></td>';
+        echo '</tr>';
+
+        echo '<tr class="terricel-report-filter-trip">';
+        echo '<th scope="row"><label for="terricel_report_trip_group_id">' . esc_html__('School Group', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</label></th>';
+        echo '<td><select id="terricel_report_trip_group_id" name="terricel_report_trip_group_id">';
+        echo '<option value="0">' . esc_html__('All groups', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</option>';
+        foreach ($groups as $group) {
+            echo '<option value="' . esc_attr($group['id']) . '"' . selected($selected_group_id, $group['id'], false) . '>' . esc_html($group['label']) . '</option>';
+        }
+        echo '</select> <span class="description">' . esc_html__('Groups are limited to groups with trips during the selected date range.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</span></td>';
+        echo '</tr>';
+
+        echo '<script>';
+        echo '(function(){var type=document.getElementById("terricel_report_type");var start=document.getElementById("terricel_report_start_date");var end=document.getElementById("terricel_report_end_date");var school=document.getElementById("terricel_report_trip_school_id");var group=document.getElementById("terricel_report_trip_group_id");if(!type||!start||!end||!school||!group){return;}var nonce=' . wp_json_encode(wp_create_nonce('terricel_trip_report_groups')) . ';function option(value,label,selected){var item=document.createElement("option");item.value=String(value);item.textContent=label;if(selected){item.selected=true;}return item;}function refill(select,items,allLabel,current){select.innerHTML="";select.appendChild(option("0",allLabel,current==="0"));(items||[]).forEach(function(row){select.appendChild(option(row.id,row.label,String(row.id)===String(current)));});if(select.selectedIndex<0){select.value="0";}}function refresh(){if(type.value!=="trips_by_school"){return;}var currentSchool=school.value;var currentGroup=group.value;var body=new URLSearchParams({action:"terricel_trip_report_groups",nonce:nonce,start_date:start.value,end_date:end.value,school_id:currentSchool});fetch(ajaxurl,{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/x-www-form-urlencoded; charset=UTF-8"},body:body.toString()}).then(function(response){return response.json();}).then(function(json){if(!json||!json.success){return;}refill(school,json.data.schools||[],' . wp_json_encode(__('All schools', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)) . ',currentSchool);refill(group,json.data.groups||[],' . wp_json_encode(__('All groups', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)) . ',currentGroup);});}type.addEventListener("change",refresh);start.addEventListener("change",refresh);end.addEventListener("change",refresh);school.addEventListener("change",function(){group.value="0";refresh();});}());';
+        echo '</script>';
+    }
+
+    public function ajax_report_groups() {
+        if (!current_user_can('terricel_manage_operations')) {
+            wp_send_json_error(array('message' => __('You do not have permission to view reports.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)), 403);
+        }
+
+        check_ajax_referer('terricel_trip_report_groups', 'nonce');
+
+        $start_date = $this->sanitize_date($_POST['start_date'] ?? '') ?: current_time('Y-m-d');
+        $end_date = $this->sanitize_date($_POST['end_date'] ?? '') ?: $start_date;
+        $school_id = absint($_POST['school_id'] ?? 0);
+
+        wp_send_json_success(array(
+            'schools' => $this->get_trip_report_schools_for_range($start_date, $end_date),
+            'groups'  => $this->get_trip_report_groups_for_range($start_date, $end_date, $school_id),
+        ));
+    }
+
+    public function build_trips_by_school_report($start_date, $end_date, $request) {
+        $selected_school_id = isset($request['terricel_report_trip_school_id']) ? absint($request['terricel_report_trip_school_id']) : 0;
+        $selected_group_id = isset($request['terricel_report_trip_group_id']) ? absint($request['terricel_report_trip_group_id']) : 0;
+        $sections = array();
+
+        foreach ($this->get_trip_report_trips($start_date, $end_date, $selected_group_id, $selected_school_id) as $trip) {
+            $trip_id = absint($trip->ID);
+            $school_id = absint(get_post_meta($trip_id, '_terricel_trip_school_id', true));
+            $group_id = absint(get_post_meta($trip_id, '_terricel_trip_group_id', true));
+            $school_label = $this->get_school_label($school_id);
+            $group_label = $group_id > 0 ? get_the_title($group_id) : __('Unassigned Group', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN);
+            $section_label = sprintf(
+                /* translators: 1: group name, 2: school label. */
+                __('%1$s - %2$s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+                $group_label,
+                $school_label
+            );
+
+            if (!isset($sections[$section_label])) {
+                $sections[$section_label] = array(
+                    'title' => $section_label,
+                    'rows'  => array(),
+                );
+            }
+
+            $mileage = get_post_meta($trip_id, '_terricel_trip_estimated_mileage', true);
+            $assignment_text = str_replace('</div><div>', '; ', $this->format_trip_assignment_summary($trip_id));
+            $assignment_text = trim(preg_replace('/\s+/', ' ', wp_strip_all_tags($assignment_text)));
+
+            $sections[$section_label]['rows'][] = array(
+                'pickup'      => $this->format_trip_pickup($trip_id),
+                'return'      => $this->format_trip_return($trip_id),
+                'school'      => $school_label,
+                'advisor'     => $group_id > 0 ? $this->get_group_advisor_name($group_id) : __('Not set', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+                'destination' => $this->get_trip_destination_label($trip_id),
+                'assignments' => $assignment_text,
+                'mileage'     => '' !== (string) $mileage ? sprintf(__('%s mi', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), (string) $mileage) : __('Not set', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+            );
+        }
+
+        ksort($sections, SORT_NATURAL | SORT_FLAG_CASE);
+        foreach ($sections as &$section) {
+            usort(
+                $section['rows'],
+                function ($first, $second) {
+                    return strnatcasecmp($first['pickup'] . ' ' . $first['destination'], $second['pickup'] . ' ' . $second['destination']);
+                }
+            );
+        }
+        unset($section);
+
+        return array(
+            'title'    => __('Trips by School', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+            'filename' => 'trips-by-school',
+            'columns'  => array(
+                array('key' => 'pickup', 'label' => __('Pickup', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 70),
+                array('key' => 'return', 'label' => __('Return', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 70),
+                array('key' => 'school', 'label' => __('School', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 55),
+                array('key' => 'advisor', 'label' => __('Advisor', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 65),
+                array('key' => 'destination', 'label' => __('Destination', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 112),
+                array('key' => 'assignments', 'label' => __('Assignments', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 88),
+                array('key' => 'mileage', 'label' => __('Est. Miles', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 52),
+            ),
+            'sections' => array_values($sections),
+        );
+    }
+
+    private function get_trip_report_schools_for_range($start_date, $end_date) {
+        $schools = array();
+
+        foreach ($this->get_trip_report_trips($start_date, $end_date) as $trip) {
+            $school_id = absint(get_post_meta($trip->ID, '_terricel_trip_school_id', true));
+            if ($school_id < 1 || isset($schools[$school_id])) {
+                continue;
+            }
+
+            $schools[$school_id] = array(
+                'id'    => $school_id,
+                'label' => $this->get_school_label($school_id),
+            );
+        }
+
+        uasort(
+            $schools,
+            function ($first, $second) {
+                return strnatcasecmp($first['label'], $second['label']);
+            }
+        );
+
+        return array_values($schools);
+    }
+
+    private function get_trip_report_groups_for_range($start_date, $end_date, $school_id = 0) {
+        $groups = array();
+
+        foreach ($this->get_trip_report_trips($start_date, $end_date, 0, $school_id) as $trip) {
+            $group_id = absint(get_post_meta($trip->ID, '_terricel_trip_group_id', true));
+            if ($group_id < 1 || isset($groups[$group_id])) {
+                continue;
+            }
+
+            $groups[$group_id] = array(
+                'id'    => $group_id,
+                'label' => $this->get_group_select_label($group_id),
+            );
+        }
+
+        uasort(
+            $groups,
+            function ($first, $second) {
+                return strnatcasecmp($first['label'], $second['label']);
+            }
+        );
+
+        return array_values($groups);
+    }
+
+    private function get_trip_report_trips($start_date, $end_date, $group_id = 0, $school_id = 0) {
+        $start_date = $this->sanitize_date($start_date) ?: current_time('Y-m-d');
+        $end_date = $this->sanitize_date($end_date) ?: $start_date;
+
+        if (strtotime($end_date) < strtotime($start_date)) {
+            $end_date = $start_date;
+        }
+
+        $meta_query = array(
+            array(
+                'key'     => '_terricel_trip_pickup_date',
+                'value'   => array($start_date, $end_date),
+                'compare' => 'BETWEEN',
+                'type'    => 'DATE',
+            ),
+        );
+
+        if ($school_id > 0) {
+            $meta_query[] = array(
+                'key'     => '_terricel_trip_school_id',
+                'value'   => absint($school_id),
+                'compare' => '=',
+                'type'    => 'NUMERIC',
+            );
+        }
+
+        if ($group_id > 0) {
+            $meta_query[] = array(
+                'key'     => '_terricel_trip_group_id',
+                'value'   => absint($group_id),
+                'compare' => '=',
+                'type'    => 'NUMERIC',
+            );
+        }
+
+        return get_posts(
+            array(
+                'post_type'      => self::TRIP_POST_TYPE,
+                'post_status'    => 'publish',
+                'posts_per_page' => 1000,
+                'orderby'        => 'meta_value',
+                'order'          => 'ASC',
+                'meta_key'       => '_terricel_trip_pickup_date',
+                'meta_query'     => $meta_query,
+            )
+        );
+    }
+
     private function render_upcoming_trip_summary() {
         $trips = $this->get_upcoming_trips(30);
         echo '<h2>' . esc_html__('Upcoming Trips', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</h2>';
