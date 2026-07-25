@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.29 - 2026-07-25
+
+- Added a Settings > Tools toggle to enable or disable Trip Google Maps route diagnostics.
+- Hid Google Route Options diagnostics from Trip edit screens unless the Tools diagnostics toggle is enabled.
+
 ## 0.1.28 - 2026-07-25
 
 - Added the exact estimate origin, destination, and matching Google Maps directions link to the Google Route Options diagnostic panel.

@@ -18,6 +18,7 @@ class Terricel_Transit_Trips_Plugin {
     const OPTION_TRAVEL_BUFFER_PERCENT = 'terricel_trips_travel_buffer_percent';
     const OPTION_UNASSIGNED_NOTICE_HOURS = 'terricel_trips_unassigned_notice_hours';
     const OPTION_DRIVER_REMINDER_HOURS = 'terricel_trips_driver_reminder_hours';
+    const OPTION_GOOGLE_MAPS_DIAGNOSTICS = 'terricel_trips_google_maps_diagnostics';
     const CRON_HOOK = 'terricel_transit_trips_notifications';
 
     private $module;
@@ -33,8 +34,10 @@ class Terricel_Transit_Trips_Plugin {
         add_filter('terricel_logistics_driver_scheduled_pto_requests', array($this, 'pass_through_driver_pto_requests'));
         add_action('admin_post_terricel_trips_save_trip_settings', array($this, 'save_trip_settings'));
         add_action('admin_post_terricel_trips_save_integrations', array($this, 'save_integrations'));
+        add_action('admin_post_terricel_trips_save_tools', array($this, 'save_tools_settings'));
         add_action('terricel_logistics_render_settings_tab_trips', array($this, 'render_trip_settings_tab'));
         add_action('terricel_logistics_render_settings_tab_integrations', array($this, 'render_integrations_tab'));
+        add_action('terricel_logistics_render_settings_tab_tools', array($this, 'render_tools_tab_section'));
         add_action(self::CRON_HOOK, array($this, 'send_due_trip_notifications'));
     }
 
@@ -250,6 +253,27 @@ class Terricel_Transit_Trips_Plugin {
         echo '</form>';
     }
 
+    public function render_tools_tab_section() {
+        if (!current_user_can('terricel_manage_operations')) {
+            return;
+        }
+
+        $diagnostics_enabled = self::google_maps_diagnostics_enabled();
+
+        echo '<div class="postbox" style="max-width:1100px;">';
+        echo '<div class="inside">';
+        echo '<h3>' . esc_html__('Trip Google Maps Diagnostics', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</h3>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+        wp_nonce_field('terricel_trips_save_tools');
+        echo '<input type="hidden" name="action" value="terricel_trips_save_tools">';
+        echo '<label><input type="checkbox" name="terricel_trips_google_maps_diagnostics" value="1"' . checked($diagnostics_enabled, true, false) . '> ' . esc_html__('Enable Google Maps route diagnostics on Trip edit screens', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</label>';
+        echo '<p class="description">' . esc_html__('When enabled, Trip edit screens show the exact school origin, destination, matching Google Maps link, and route alternatives returned by Google. Leave this off unless actively troubleshooting route estimate differences.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</p>';
+        submit_button(__('Save Trip Tools', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'secondary', 'submit', false);
+        echo '</form>';
+        echo '</div>';
+        echo '</div>';
+    }
+
     public function save_trip_settings() {
         if (!current_user_can(self::CAP_MANAGE_TRIPS)) {
             wp_die(esc_html__('You do not have permission to save trip settings.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN));
@@ -275,6 +299,22 @@ class Terricel_Transit_Trips_Plugin {
 
         wp_safe_redirect(admin_url('admin.php?page=terricel-transit-settings&tab=integrations&integrations-updated=1'));
         exit;
+    }
+
+    public function save_tools_settings() {
+        if (!current_user_can('terricel_manage_operations')) {
+            wp_die(esc_html__('You do not have permission to save trip tools settings.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN));
+        }
+
+        check_admin_referer('terricel_trips_save_tools');
+        update_option(self::OPTION_GOOGLE_MAPS_DIAGNOSTICS, !empty($_POST['terricel_trips_google_maps_diagnostics']) ? '1' : '0');
+
+        wp_safe_redirect(admin_url('admin.php?page=terricel-transit-settings&tab=tools&tools-settings-updated=1'));
+        exit;
+    }
+
+    public static function google_maps_diagnostics_enabled() {
+        return '1' === get_option(self::OPTION_GOOGLE_MAPS_DIAGNOSTICS, '0');
     }
 
     private function get_site_outbound_ip() {
