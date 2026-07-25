@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.4 - 2026-07-25
+
+- Recognized existing trip-created route vacancies as confirmed route conflicts so legacy confirmations do not reopen the popup.
+
 ## 0.2.3 - 2026-07-25
 
 - Persisted confirmed driver route conflicts so unchanged conflicts do not prompt again.

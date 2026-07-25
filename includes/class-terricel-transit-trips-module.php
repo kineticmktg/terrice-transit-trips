@@ -401,8 +401,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         $assignments = $this->sanitize_assignments($_POST['terricel_trip_assignments'] ?? array(), $buses_needed, $post_id);
         $conflicts = $this->get_assignment_conflicts($post_id, $assignments);
         $conflict_signature = $this->get_conflict_signature($conflicts);
-        $stored_conflict_signature = (string) get_post_meta($post_id, '_terricel_trip_confirmed_conflict_signature', true);
-        $confirmed = !empty($_POST['terricel_trip_confirm_conflicts']) || !empty($_POST['terricel_trip_confirm_conflicts_pending']) || ('' !== $conflict_signature && hash_equals($stored_conflict_signature, $conflict_signature));
+        $confirmed = !empty($_POST['terricel_trip_confirm_conflicts']) || !empty($_POST['terricel_trip_confirm_conflicts_pending']) || $this->is_conflict_signature_confirmed($post_id, $conflict_signature);
 
         if (!empty($conflicts) && !$confirmed) {
             update_post_meta($post_id, '_terricel_trip_pending_assignments', $assignments);
@@ -417,8 +416,6 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         if (!empty($conflicts) && $confirmed) {
             update_post_meta($post_id, '_terricel_trip_route_vacancy_ids', $this->create_route_coverage_vacancies($post_id, $conflicts));
             update_post_meta($post_id, '_terricel_trip_confirmed_conflict_signature', $conflict_signature);
-        } else {
-            delete_post_meta($post_id, '_terricel_trip_confirmed_conflict_signature');
         }
 
         $old_assignments = $this->get_trip_assignments($post_id);
@@ -632,6 +629,68 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         sort($items);
 
         return empty($items) ? '' : wp_json_encode($items);
+    }
+
+    private function is_conflict_signature_confirmed($trip_id, $signature) {
+        $signature = (string) $signature;
+        if ('' === $signature) {
+            return false;
+        }
+
+        $stored_signature = (string) get_post_meta($trip_id, '_terricel_trip_confirmed_conflict_signature', true);
+        if ('' !== $stored_signature && hash_equals($stored_signature, $signature)) {
+            return true;
+        }
+
+        foreach ($this->get_legacy_confirmed_conflict_signatures($trip_id) as $legacy_signature) {
+            if (hash_equals((string) $legacy_signature, $signature)) {
+                update_post_meta($trip_id, '_terricel_trip_confirmed_conflict_signature', $signature);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function get_legacy_confirmed_conflict_signatures($trip_id) {
+        $vacancy_ids = get_post_meta($trip_id, '_terricel_trip_route_vacancy_ids', true);
+        $vacancy_ids = is_array($vacancy_ids) ? array_map('absint', $vacancy_ids) : array();
+        $signatures = array();
+        $conflicts = array();
+
+        foreach ($vacancy_ids as $vacancy_id) {
+            if ($vacancy_id < 1 || 'terricel_vacancy' !== get_post_type($vacancy_id)) {
+                continue;
+            }
+
+            $driver_id = absint(get_post_meta($vacancy_id, '_terricel_vacancy_driver_id', true));
+            $route_id = absint(get_post_meta($vacancy_id, '_terricel_vacancy_route_id', true));
+            $date = $this->sanitize_date(get_post_meta($vacancy_id, '_terricel_vacancy_date', true));
+            $runs = get_post_meta($vacancy_id, '_terricel_vacancy_runs', true);
+            $runs = is_array($runs) ? $runs : array();
+
+            foreach ($runs as $run) {
+                if (!is_array($run)) {
+                    continue;
+                }
+
+                $conflicts[] = array(
+                    'driver_id'  => $driver_id,
+                    'route_id'   => $route_id,
+                    'date'       => $this->sanitize_date($run['date'] ?? '') ?: $date,
+                    'run_key'    => sanitize_key($run['run_key'] ?? ''),
+                    'start_time' => $this->sanitize_time($run['start_time'] ?? ''),
+                    'end_time'   => $this->sanitize_time($run['end_time'] ?? ''),
+                );
+            }
+        }
+
+        $signature = $this->get_conflict_signature($conflicts);
+        if ('' !== $signature) {
+            $signatures[] = $signature;
+        }
+
+        return $signatures;
     }
 
     private function maybe_queue_driver_assignment_notifications($trip_id, $old_assignments, $new_assignments) {
@@ -1826,7 +1885,7 @@ JS;
             array(
                 'conflicts'  => $conflicts,
                 'signature'  => $signature,
-                'confirmed'  => '' !== $signature && hash_equals((string) get_post_meta($trip_id, '_terricel_trip_confirmed_conflict_signature', true), $signature),
+                'confirmed'  => $this->is_conflict_signature_confirmed($trip_id, $signature),
             )
         );
     }
