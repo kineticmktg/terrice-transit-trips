@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.21 - 2026-07-25
+
+- Refreshed Google mileage and travel-time estimates whenever the destination changes, even after manual estimate edits.
+- Switched Google travel-time estimates to the fastest static route duration before applying the configured time buffer.
+
 ## 0.1.20 - 2026-07-25
 
 - Rounded Google estimated round-trip mileage up to a whole mile while keeping the configured buffer limited to travel-time estimates.
