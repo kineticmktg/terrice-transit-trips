@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.33 - 2026-07-25
+
+- Rounded Google-buffered one-way travel time estimates up to the next 10-minute interval.
+- Added a travel time tooltip explaining buffer, rounding, and manual override behavior.
+- Refreshed automatic Arrival and Return estimates when school or destination details change while preserving manual overrides otherwise.
+
 ## 0.1.32 - 2026-07-25
 
 - Replaced native Trip time pickers with friendly typed time inputs that normalize to saved 24-hour times.
