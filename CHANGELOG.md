@@ -2,7 +2,7 @@
 
 ## 0.2.8 - 2026-07-25
 
-- Changed Trips by School PDF assignment details to stay nested directly under each trip row with bus, driver, pre-trip mileage, post-trip mileage, and total mileage columns.
+- Changed Trips by School PDF assignment details to render as an indented nested table directly under each trip row with bus, driver, pre-trip mileage, post-trip mileage, and total mileage columns.
 
 ## 0.2.7 - 2026-07-25
 

@@ -618,21 +618,17 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
                 'advisor'     => $group_id > 0 ? $this->get_group_advisor_name($group_id) : __('Not set', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
                 'destination' => $this->get_trip_destination_label($trip_id),
                 'actual_mileage' => $this->format_report_mileage($total_actual_mileage),
+                '_nested_table' => array(
+                    'columns' => array(
+                        array('key' => 'bus', 'label' => __('Bus', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 90),
+                        array('key' => 'driver', 'label' => __('Driver', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 116),
+                        array('key' => 'pre_trip_mileage', 'label' => __('Pre-trip Mileage', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 90),
+                        array('key' => 'post_trip_mileage', 'label' => __('Post-trip Mileage', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 90),
+                        array('key' => 'total_mileage', 'label' => __('Total Mileage', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'width' => 90),
+                    ),
+                    'rows' => $this->get_trip_report_assignment_rows($assignments, $actuals),
+                ),
             );
-
-            if (max(count($assignments), count($actuals)) > 0) {
-                $sections[$section_label]['rows'][] = array(
-                    'pickup'         => __('Bus', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
-                    'school'         => __('Driver', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
-                    'advisor'        => __('Pre-trip Mileage', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
-                    'destination'    => __('Post-trip Mileage', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
-                    'actual_mileage' => __('Total Mileage', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
-                );
-            }
-
-            foreach ($this->get_trip_report_assignment_rows($assignments, $actuals) as $assignment_row) {
-                $sections[$section_label]['rows'][] = $assignment_row;
-            }
         }
 
         ksort($sections, SORT_NATURAL | SORT_FLAG_CASE);
@@ -665,11 +661,11 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             $total_mileage = $this->calculate_actual_mileage_total($pre_mileage, $post_mileage);
 
             $rows[] = array(
-                'pickup' => $bus_id > 0 ? get_the_title($bus_id) : __('No bus', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
-                'school' => $driver_id > 0 ? get_the_title($driver_id) : __('Vacant', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
-                'advisor' => $this->format_report_mileage($pre_mileage, false),
-                'destination' => $this->format_report_mileage($post_mileage, false),
-                'actual_mileage' => $this->format_report_mileage($total_mileage),
+                'bus' => $bus_id > 0 ? get_the_title($bus_id) : __('No bus', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+                'driver' => $driver_id > 0 ? get_the_title($driver_id) : __('Vacant', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+                'pre_trip_mileage' => $this->format_report_mileage($pre_mileage, false),
+                'post_trip_mileage' => $this->format_report_mileage($post_mileage, false),
+                'total_mileage' => $this->format_report_mileage($total_mileage),
             );
         }
 
