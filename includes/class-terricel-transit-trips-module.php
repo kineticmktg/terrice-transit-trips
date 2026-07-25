@@ -783,7 +783,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
                         'units' => 'IMPERIAL',
                         'computeAlternativeRoutes' => true,
                         'routingPreference' => 'TRAFFIC_AWARE_OPTIMAL',
-                        'departureTime' => gmdate('Y-m-d\TH:i:s\Z'),
+                        'departureTime' => gmdate('Y-m-d\TH:i:s\Z', time() + (5 * MINUTE_IN_SECONDS)),
                         'trafficModel' => 'OPTIMISTIC',
                     )
                 ),

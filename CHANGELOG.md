@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.26 - 2026-07-25
+
+- Set Google route estimate departure times slightly in the future to satisfy Routes API traffic-aware timestamp validation.
+
 ## 0.1.25 - 2026-07-25
 
 - Added visible estimate refresh status and Google Routes API error messages to the Trip editor.
