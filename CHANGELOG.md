@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.17 - 2026-07-25
+
+- Fixed Trip Save Draft being blocked by hidden inline School Group required fields.
+
 ## 0.1.16 - 2026-07-25
 
 - Updated draft trip titles to use available trip fields and end with "- DRAFT".

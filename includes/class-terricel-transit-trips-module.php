@@ -1052,7 +1052,7 @@ JS;
             $extra .= ' inputmode="' . esc_attr($inputmode) . '"';
         }
         if ($required) {
-            $extra .= ' required';
+            $extra .= ' aria-required="true" data-terricel-required="1"';
         }
 
         echo '<p>';
