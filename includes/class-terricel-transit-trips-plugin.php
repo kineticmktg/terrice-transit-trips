@@ -30,7 +30,7 @@ class Terricel_Transit_Trips_Plugin {
         add_filter('terricel_logistics_role_capabilities', array($this, 'filter_role_capabilities'));
         add_filter('terricel_logistics_settings_tabs', array($this, 'filter_settings_tabs'));
         add_filter('terricel_logistics_modules', array($this, 'register_module'));
-        add_filter('terricel_logistics_driver_pto_summary', array($this, 'render_driver_dashboard_trips'), 10, 3);
+        add_action('terricel_logistics_driver_dashboard_assignments', array($this, 'render_driver_dashboard_trips'), 10, 2);
         add_filter('terricel_logistics_driver_scheduled_pto_requests', array($this, 'pass_through_driver_pto_requests'));
         add_action('admin_post_terricel_trips_save_trip_settings', array($this, 'save_trip_settings'));
         add_action('admin_post_terricel_trips_save_integrations', array($this, 'save_integrations'));
@@ -359,13 +359,12 @@ class Terricel_Transit_Trips_Plugin {
         $this->module->send_due_trip_notifications();
     }
 
-    public function render_driver_dashboard_trips($summary, $driver_id, $user_id) {
+    public function render_driver_dashboard_trips($driver_id, $user_id) {
         if (!$this->module || absint($driver_id) < 1) {
-            return $summary;
+            return;
         }
 
         $this->module->render_driver_dashboard_trips(absint($driver_id));
-        return $summary;
     }
 
     public function pass_through_driver_pto_requests($requests) {

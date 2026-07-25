@@ -483,13 +483,6 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Trip draft saved.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</p></div>';
         }
 
-        $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
-        if (in_array($page, array('terricel-my-dashboard', 'terricel-driver-dashboard'), true)) {
-            $driver_id = $this->get_current_user_driver_id();
-            if ($driver_id > 0) {
-                $this->render_driver_dashboard_trips($driver_id);
-            }
-        }
     }
 
     public function send_due_trip_notifications() {
@@ -510,7 +503,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
 
             if ($pickup - $now <= $driver_hours * HOUR_IN_SECONDS && !get_post_meta($trip->ID, '_terricel_trip_driver_reminder_sent', true)) {
                 foreach ($this->get_trip_assigned_driver_user_ids($trip->ID) as $user_id) {
-                    $this->queue_user_notification($user_id, 'trip_driver_reminder', __('Upcoming Trip Assignment', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_trip_notice_message($trip->ID), $this->get_trip_maps_url($trip->ID));
+                    $this->queue_user_notification($user_id, 'trip_driver_reminder', __('Upcoming Trip Assignment', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_trip_notice_message($trip->ID), $this->get_driver_dashboard_url());
                 }
                 update_post_meta($trip->ID, '_terricel_trip_driver_reminder_sent', current_time('mysql'));
             }
@@ -520,10 +513,10 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
     public function render_driver_dashboard_trips($driver_id) {
         $trips = $this->get_driver_upcoming_trips($driver_id);
         if (empty($trips)) {
+            echo '<p>' . esc_html__('No future trip assignments are scheduled.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</p>';
             return;
         }
 
-        echo '<h2>' . esc_html__('Trip Assignments', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</h2>';
         echo '<table class="widefat striped"><thead><tr>';
         echo '<th>' . esc_html__('Pickup', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</th>';
         echo '<th>' . esc_html__('School', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</th>';
@@ -703,7 +696,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
 
             $user_id = (int) get_post_meta($driver_id, '_terricel_driver_user_id', true);
             if ($user_id > 0) {
-                $this->queue_user_notification($user_id, 'trip_driver_assigned', __('New Trip Assignment', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_trip_notice_message($trip_id), $this->get_trip_maps_url($trip_id));
+                $this->queue_user_notification($user_id, 'trip_driver_assigned', __('New Trip Assignment', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_trip_notice_message($trip_id), $this->get_driver_dashboard_url());
             }
         }
     }
@@ -737,8 +730,16 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
     }
 
     private function get_driver_upcoming_trips($driver_id) {
-        $trips = $this->get_upcoming_trips(60);
+        $trips = $this->get_upcoming_trips(365);
+
         return array_values(array_filter($trips, function ($trip) use ($driver_id) {
+            $return_timestamp = $this->get_trip_return_timestamp($trip->ID);
+            $pickup_timestamp = $this->get_trip_pickup_timestamp($trip->ID);
+            $comparison_timestamp = $return_timestamp ? $return_timestamp : $pickup_timestamp;
+            if ($comparison_timestamp && $comparison_timestamp < current_time('timestamp')) {
+                return false;
+            }
+
             foreach ($this->get_trip_assignments($trip->ID) as $assignment) {
                 if (absint($assignment['driver_id']) === absint($driver_id)) {
                     return true;
@@ -876,6 +877,16 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         return strtotime($date . ' ' . $time);
     }
 
+    private function get_trip_return_timestamp($trip_id) {
+        $date = get_post_meta($trip_id, '_terricel_trip_return_date', true);
+        $time = get_post_meta($trip_id, '_terricel_trip_return_time', true);
+        if (!$date || !$time) {
+            return 0;
+        }
+
+        return strtotime($date . ' ' . $time);
+    }
+
     private function format_trip_pickup($trip_id) {
         $date = get_post_meta($trip_id, '_terricel_trip_pickup_date', true);
         $time = get_post_meta($trip_id, '_terricel_trip_pickup_time', true);
@@ -1001,6 +1012,10 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         }
 
         return 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode($address);
+    }
+
+    private function get_driver_dashboard_url() {
+        return admin_url('admin.php?page=terricel-my-dashboard#terricel-driver-assignments');
     }
 
     private function get_school_origin_address($school_id) {

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.5 - 2026-07-25
+
+- Moved driver trip assignments into the core My Driver Dashboard Assignments section so they render once in the requested order.
+- Changed trip assignment and reminder notifications to open My Driver Dashboard instead of opening Maps directly.
+- Limited driver dashboard trip assignments to current and future trips, with the Map column still providing the Open button for directions.
+
 ## 0.2.4 - 2026-07-25
 
 - Recognized existing trip-created route vacancies as confirmed route conflicts so legacy confirmations do not reopen the popup.
