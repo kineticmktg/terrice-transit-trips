@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.10 - 2026-07-24
+
+- Moved the School Trip Groups Back to Trips button directly under the page title.
+- Changed the School Trip Group edit screen back button to return to School Trip Groups and removed the advisor contact action buttons from that edit screen.
+
 ## 0.1.9 - 2026-07-24
 
 - Added a Back to Trips button to the School Trip Groups list page header.
