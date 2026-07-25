@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.13 - 2026-07-25
+
+- Added server-side Google Places destination address lookup on the Trip edit screen.
+- Defaulted Arrival, Departure, and Return dates from the selected Pickup date unless manually overridden.
+- Made Buses & Drivers bus slots update live from the Buses Needed value.
+- Updated Google integration instructions to include Places API (New).
+
 ## 0.1.12 - 2026-07-24
 
 - Improved the Trip Details layout so school/group selection, inline group creation, and schedule fields are visually grouped and responsive.

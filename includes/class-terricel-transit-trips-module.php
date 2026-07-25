@@ -52,6 +52,8 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_assets'));
             add_action('wp_ajax_terricel_trip_groups_for_school', array($this, 'ajax_trip_groups_for_school'));
             add_action('wp_ajax_terricel_create_trip_group', array($this, 'ajax_create_trip_group'));
+            add_action('wp_ajax_terricel_trip_address_suggestions', array($this, 'ajax_trip_address_suggestions'));
+            add_action('wp_ajax_terricel_trip_place_details', array($this, 'ajax_trip_place_details'));
         }
     }
 
@@ -182,7 +184,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         echo '<p><label for="terricel_trip_location_name"><strong>' . esc_html__('Location Name', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</strong></label></p>';
         echo '<p><input class="widefat" type="text" id="terricel_trip_location_name" name="terricel_trip_location_name" value="' . esc_attr($name) . '"></p>';
         echo '<p><label for="terricel_trip_destination_address"><strong>' . esc_html__('Destination Address', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</strong></label></p>';
-        echo '<p><textarea class="widefat" rows="3" id="terricel_trip_destination_address" name="terricel_trip_destination_address">' . esc_textarea($address) . '</textarea></p>';
+        echo '<div class="terricel-address-lookup"><input class="widefat" type="text" id="terricel_trip_destination_address" name="terricel_trip_destination_address" value="' . esc_attr($address) . '" autocomplete="off"><div id="terricel_trip_address_suggestions" class="terricel-address-suggestions" hidden></div></div>';
         echo '<div class="terricel-trip-grid">';
         echo '<p><label for="terricel_trip_estimated_mileage"><strong>' . esc_html__('Estimated Round Trip Mileage', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</strong></label><br><input type="number" min="0" step="0.1" id="terricel_trip_estimated_mileage" name="terricel_trip_estimated_mileage" value="' . esc_attr($mileage) . '"></p>';
         echo '<p><label for="terricel_trip_estimated_travel_minutes"><strong>' . esc_html__('Estimated One-Way Travel Time', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</strong></label><br><input type="number" min="0" step="1" id="terricel_trip_estimated_travel_minutes" name="terricel_trip_estimated_travel_minutes" value="' . esc_attr($travel_minutes) . '"> ' . esc_html__('minutes', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</p>';
@@ -220,7 +222,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         echo '<th>' . esc_html__('Bus Slot', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</th>';
         echo '<th>' . esc_html__('Trip Bus', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</th>';
         echo '<th>' . esc_html__('Driver', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</th>';
-        echo '</tr></thead><tbody>';
+        echo '</tr></thead><tbody id="terricel_trip_assignment_rows">';
 
         for ($i = 0; $i < $buses_needed; $i++) {
             $assignment = isset($assignments[$i]) ? $assignments[$i] : array('bus_id' => 0, 'driver_id' => 0);
@@ -232,6 +234,9 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         }
 
         echo '</tbody></table>';
+        echo '<script type="text/template" id="terricel_trip_assignment_row_template">';
+        echo '<tr><td>' . esc_html__('Bus __NUMBER__', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</td><td>' . $this->get_bus_select('terricel_trip_assignments[__INDEX__][bus_id]', 0, $post->ID) . '</td><td>' . $this->get_driver_select('terricel_trip_assignments[__INDEX__][driver_id]', 0) . '</td></tr>';
+        echo '</script>';
     }
 
     public function render_group_details_meta_box($post) {
@@ -780,7 +785,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
 
         wp_register_style('terricel-transit-trips-admin', false, array(), TERRICEL_TRANSIT_TRIPS_VERSION);
         wp_enqueue_style('terricel-transit-trips-admin');
-        wp_add_inline_style('terricel-transit-trips-admin', '.terricel-trip-grid,.terricel-group-details-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 16px}.terricel-trip-grid p,.terricel-group-details-grid p{margin-top:0}.terricel-trip-details-layout{display:grid;gap:18px}.terricel-trip-school-row{display:grid;grid-template-columns:minmax(240px,1fr) minmax(260px,1fr) auto;gap:14px;align-items:end;max-width:980px}.terricel-trip-school-field p{margin:0}.terricel-trip-school-field select{min-height:40px}.terricel-trip-group-action .button{min-height:40px;padding:4px 18px}.terricel-trip-schedule-grid{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:14px;max-width:1060px}.terricel-trip-time-card{border:1px solid #dcdcde;background:#fdfdfd;padding:12px;display:grid;gap:10px}.terricel-trip-time-card strong{font-size:13px}.terricel-trip-time-card label{display:grid;gap:4px;margin:0}.terricel-trip-time-card span{font-size:12px;color:#646970}.terricel-trip-time-card input{width:100%;max-width:100%;min-height:36px}.terricel-trip-assignments select,.terricel-group-details-grid select,.terricel-group-details-grid input{max-width:100%;width:100%}.terricel-required{color:#b32d2e}.terricel-group-contact-links{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 0}.terricel-group-contact-links a{text-decoration:none}.terricel-group-contact-links .dashicons{vertical-align:text-bottom}.terricel-trips-back-link{margin:0 0 12px}.terricel-inline-group-panel{border:1px solid #dcdcde;background:#fff;padding:14px;margin:0;max-width:980px}.terricel-inline-group-panel-header{display:flex;align-items:baseline;gap:10px;margin:0 0 12px}.terricel-inline-group-panel-header span{color:#646970}.terricel-inline-group-actions{margin:14px 0 0;display:flex;gap:8px;align-items:center}.terricel-trip-panel-locked .inside{opacity:.45;pointer-events:none}.terricel-trip-panel-locked:after{content:"Select a school and school group to continue.";display:block;margin:0 12px 12px;color:#646970;font-style:italic}@media (max-width:1100px){.terricel-trip-school-row{grid-template-columns:1fr 1fr}.terricel-trip-group-action{grid-column:1 / -1}.terricel-trip-schedule-grid{grid-template-columns:repeat(2,minmax(180px,1fr))}}@media (max-width:782px){.terricel-trip-school-row,.terricel-trip-schedule-grid{grid-template-columns:1fr}.terricel-inline-group-panel-header,.terricel-inline-group-actions{align-items:stretch;flex-direction:column}.terricel-trip-group-action .button{width:100%;text-align:center}}');
+        wp_add_inline_style('terricel-transit-trips-admin', '.terricel-trip-grid,.terricel-group-details-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 16px}.terricel-trip-grid p,.terricel-group-details-grid p{margin-top:0}.terricel-trip-details-layout{display:grid;gap:18px}.terricel-trip-school-row{display:grid;grid-template-columns:minmax(240px,1fr) minmax(260px,1fr) auto;gap:14px;align-items:end;max-width:980px}.terricel-trip-school-field p{margin:0}.terricel-trip-school-field select{min-height:40px}.terricel-trip-group-action .button{min-height:40px;padding:4px 18px}.terricel-trip-schedule-grid{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:14px;max-width:1060px}.terricel-trip-time-card{border:1px solid #dcdcde;background:#fdfdfd;padding:12px;display:grid;gap:10px}.terricel-trip-time-card strong{font-size:13px}.terricel-trip-time-card label{display:grid;gap:4px;margin:0}.terricel-trip-time-card span{font-size:12px;color:#646970}.terricel-trip-time-card input{width:100%;max-width:100%;min-height:36px}.terricel-trip-assignments select,.terricel-group-details-grid select,.terricel-group-details-grid input{max-width:100%;width:100%}.terricel-required{color:#b32d2e}.terricel-address-lookup{position:relative}.terricel-address-suggestions{position:absolute;z-index:1000;left:0;right:0;top:100%;background:#fff;border:1px solid #8c8f94;box-shadow:0 8px 16px rgba(0,0,0,.12);max-height:260px;overflow:auto}.terricel-address-suggestion{display:block;width:100%;padding:9px 11px;border:0;border-bottom:1px solid #f0f0f1;background:#fff;text-align:left;cursor:pointer}.terricel-address-suggestion:hover,.terricel-address-suggestion:focus{background:#f6f7f7}.terricel-address-suggestion strong{display:block}.terricel-address-suggestion span{display:block;color:#646970;font-size:12px}.terricel-group-contact-links{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 0}.terricel-group-contact-links a{text-decoration:none}.terricel-group-contact-links .dashicons{vertical-align:text-bottom}.terricel-trips-back-link{margin:0 0 12px}.terricel-inline-group-panel{border:1px solid #dcdcde;background:#fff;padding:14px;margin:0;max-width:980px}.terricel-inline-group-panel-header{display:flex;align-items:baseline;gap:10px;margin:0 0 12px}.terricel-inline-group-panel-header span{color:#646970}.terricel-inline-group-actions{margin:14px 0 0;display:flex;gap:8px;align-items:center}.terricel-trip-panel-locked .inside{opacity:.45;pointer-events:none}.terricel-trip-panel-locked:after{content:"Select a school and school group to continue.";display:block;margin:0 12px 12px;color:#646970;font-style:italic}@media (max-width:1100px){.terricel-trip-school-row{grid-template-columns:1fr 1fr}.terricel-trip-group-action{grid-column:1 / -1}.terricel-trip-schedule-grid{grid-template-columns:repeat(2,minmax(180px,1fr))}}@media (max-width:782px){.terricel-trip-school-row,.terricel-trip-schedule-grid{grid-template-columns:1fr}.terricel-inline-group-panel-header,.terricel-inline-group-actions{align-items:stretch;flex-direction:column}.terricel-trip-group-action .button{width:100%;text-align:center}}');
 
         if (self::TRIP_POST_TYPE !== $screen->post_type) {
             return;
@@ -805,6 +810,9 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
                 'selectSchool'      => __('Select a school before adding a group.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
                 'enterGroupName'    => __('Enter a group name.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
                 'requiredGroup'     => __('Enter the group name and advisor first and last name.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+                'addressLoading'    => __('Searching addresses...', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+                'addressEmpty'      => __('No address suggestions found.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+                'addressMissingKey' => __('Add a Google Maps API key with Places API enabled to use address lookup.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
                 'error'             => __('Unable to complete the request.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
             ),
         );
@@ -820,10 +828,14 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             'function fillGroups(groups,selected){group.innerHTML="";if(parseInt(school.value,10)<1){group.appendChild(option(0,config.strings.selectSchoolFirst));syncLocks();return;}group.appendChild(option(0,groups.length?config.strings.selectGroup:config.strings.noGroups));groups.forEach(function(item){var row=option(item.id,item.label);if(String(item.id)===String(selected)){row.selected=true;}group.appendChild(row);});syncLocks();}' .
             'function loadGroups(){var current=group.value;group.innerHTML="";group.appendChild(option(0,parseInt(school.value,10)>0?config.strings.loading:config.strings.selectSchoolFirst));setMessage("");if(parseInt(school.value,10)<1){fillGroups([],0);return;}post("terricel_trip_groups_for_school",{school_id:school.value}).then(function(data){fillGroups(data.groups||[],current);}).catch(function(error){fillGroups([],0);setMessage(error.message,true);});}' .
             'function clearPanel(){if(!panel){return;}panel.querySelectorAll("input").forEach(function(input){input.value="";});}' .
+            'function syncTripDates(){var pickup=document.querySelector("[name=\"terricel_trip_pickup_date\"]");if(!pickup){return;}var targets=["arrival","departure","return"].map(function(key){return document.querySelector("[name=\"terricel_trip_"+key+"_date\"]");}).filter(Boolean);targets.forEach(function(input){input.addEventListener("input",function(){input.dataset.terricelDefaulted="0";});});pickup.addEventListener("change",function(){targets.forEach(function(input){if(!pickup.value){return;}if(!input.value||input.dataset.terricelDefaulted==="1"){input.value=pickup.value;input.dataset.terricelDefaulted="1";input.dispatchEvent(new Event("change",{bubbles:true}));}});});}' .
+            'function syncBusSlots(){var needed=document.getElementById("terricel_trip_buses_needed");var rows=document.getElementById("terricel_trip_assignment_rows");var template=document.getElementById("terricel_trip_assignment_row_template");if(!needed||!rows||!template){return;}function apply(){var count=Math.max(0,Math.min(50,parseInt(needed.value,10)||0));while(rows.children.length>count){rows.removeChild(rows.lastElementChild);}while(rows.children.length<count){var index=rows.children.length;var holder=document.createElement("tbody");holder.innerHTML=template.innerHTML.replace(/__INDEX__/g,String(index)).replace(/__NUMBER__/g,String(index+1));rows.appendChild(holder.firstElementChild);}}needed.addEventListener("input",apply);needed.addEventListener("change",apply);apply();}' .
+            'function initAddressLookup(){var input=document.getElementById("terricel_trip_destination_address");var menu=document.getElementById("terricel_trip_address_suggestions");var location=document.getElementById("terricel_trip_location_name");if(!input||!menu){return;}var timer=0;function hide(){menu.hidden=true;menu.innerHTML="";}function showMessage(text){menu.innerHTML="<div class=\"terricel-address-suggestion\"><span></span></div>";menu.querySelector("span").textContent=text;menu.hidden=false;}function render(items){menu.innerHTML="";if(!items.length){showMessage(config.strings.addressEmpty);return;}items.forEach(function(item){var button=document.createElement("button");button.type="button";button.className="terricel-address-suggestion";button.dataset.placeId=item.placeId;var main=document.createElement("strong");main.textContent=item.mainText||item.text;var secondary=document.createElement("span");secondary.textContent=item.secondaryText||"";button.appendChild(main);button.appendChild(secondary);menu.appendChild(button);});menu.hidden=false;}input.addEventListener("input",function(){window.clearTimeout(timer);var value=input.value.trim();if(value.length<3){hide();return;}timer=window.setTimeout(function(){showMessage(config.strings.addressLoading);post("terricel_trip_address_suggestions",{input:value}).then(function(data){render(data.suggestions||[]);}).catch(function(error){showMessage(error.message||config.strings.addressMissingKey);});},250);});menu.addEventListener("click",function(event){var button=event.target.closest(".terricel-address-suggestion");if(!button||!button.dataset.placeId){return;}post("terricel_trip_place_details",{place_id:button.dataset.placeId}).then(function(data){if(data.address){input.value=data.address;}if(location&&data.name&&!location.value.trim()){location.value=data.name;}hide();}).catch(function(error){showMessage(error.message);});});document.addEventListener("click",function(event){if(!menu.contains(event.target)&&event.target!==input){hide();}});}' .
             'school.addEventListener("change",function(){if(panel){panel.hidden=true;}loadGroups();});group.addEventListener("change",syncLocks);' .
             'if(toggle&&panel){toggle.addEventListener("click",function(){if(parseInt(school.value,10)<1){setMessage(config.strings.selectSchool,true);return;}panel.hidden=!panel.hidden;if(!panel.hidden){var name=document.getElementById("terricel_trip_new_group_name");if(name){name.focus();}}});}' .
             'if(cancel&&panel){cancel.addEventListener("click",function(){panel.hidden=true;setMessage("");});}' .
             'if(save){save.addEventListener("click",function(){var name=document.getElementById("terricel_trip_new_group_name");var first=document.getElementById("terricel_trip_new_group_advisor_first_name");var last=document.getElementById("terricel_trip_new_group_advisor_last_name");var required=[name,first,last];var missing=required.find(function(input){return !input||!input.value.trim();});if(missing){setMessage(config.strings.requiredGroup,true);missing.focus();return;}if(parseInt(school.value,10)<1){setMessage(config.strings.selectSchool,true);return;}save.disabled=true;setMessage(config.strings.saving,false);post("terricel_create_trip_group",{school_id:school.value,group_name:name.value,advisor_first_name:first.value,advisor_last_name:last.value,advisor_main_phone:(document.getElementById("terricel_trip_new_group_advisor_main_phone")||{}).value||"",advisor_main_phone_extension:(document.getElementById("terricel_trip_new_group_advisor_main_phone_extension")||{}).value||"",advisor_emergency_phone:(document.getElementById("terricel_trip_new_group_advisor_emergency_phone")||{}).value||"",advisor_email:(document.getElementById("terricel_trip_new_group_advisor_email")||{}).value||""}).then(function(data){if(data.group){var row=option(data.group.id,data.group.label);row.selected=true;group.appendChild(row);group.value=String(data.group.id);}clearPanel();if(panel){panel.hidden=true;}setMessage(config.strings.saved,false);syncLocks();}).catch(function(error){setMessage(error.message,true);}).finally(function(){save.disabled=false;});});}' .
+            'syncTripDates();syncBusSlots();initAddressLookup();' .
             'syncLocks();' .
             '});' .
             '}(' . wp_json_encode($config) . '));';
@@ -1219,6 +1231,103 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
                     'id'    => (int) $group_id,
                     'label' => $this->get_group_select_label($group_id),
                 ),
+            )
+        );
+    }
+
+    public function ajax_trip_address_suggestions() {
+        if (!current_user_can(Terricel_Transit_Trips_Plugin::CAP_MANAGE_TRIPS)) {
+            wp_send_json_error(array('message' => __('You do not have permission to manage trips.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)), 403);
+        }
+
+        check_ajax_referer('terricel_trip_group_ajax', 'nonce');
+        $input = sanitize_text_field(wp_unslash($_POST['input'] ?? ''));
+        if (strlen($input) < 3) {
+            wp_send_json_success(array('suggestions' => array()));
+        }
+
+        $api_key = get_option(Terricel_Transit_Trips_Plugin::OPTION_GOOGLE_API_KEY, '');
+        if (!$api_key) {
+            wp_send_json_error(array('message' => __('Add a Google Maps API key with Places API enabled to use address lookup.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)), 400);
+        }
+
+        $response = wp_remote_post(
+            'https://places.googleapis.com/v1/places:autocomplete',
+            array(
+                'timeout' => 10,
+                'headers' => array(
+                    'Content-Type'   => 'application/json',
+                    'X-Goog-Api-Key' => $api_key,
+                ),
+                'body'    => wp_json_encode(
+                    array(
+                        'input'                   => $input,
+                        'includeQueryPredictions' => false,
+                        'languageCode'            => 'en',
+                        'regionCode'              => 'US',
+                    )
+                ),
+            )
+        );
+
+        if (is_wp_error($response)) {
+            wp_send_json_error(array('message' => $response->get_error_message()), 500);
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        $suggestions = array();
+        foreach (($body['suggestions'] ?? array()) as $suggestion) {
+            $place = $suggestion['placePrediction'] ?? array();
+            if (empty($place['placeId'])) {
+                continue;
+            }
+
+            $suggestions[] = array(
+                'placeId'       => sanitize_text_field($place['placeId']),
+                'text'          => sanitize_text_field($place['text']['text'] ?? ''),
+                'mainText'      => sanitize_text_field($place['structuredFormat']['mainText']['text'] ?? ''),
+                'secondaryText' => sanitize_text_field($place['structuredFormat']['secondaryText']['text'] ?? ''),
+            );
+        }
+
+        wp_send_json_success(array('suggestions' => $suggestions));
+    }
+
+    public function ajax_trip_place_details() {
+        if (!current_user_can(Terricel_Transit_Trips_Plugin::CAP_MANAGE_TRIPS)) {
+            wp_send_json_error(array('message' => __('You do not have permission to manage trips.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)), 403);
+        }
+
+        check_ajax_referer('terricel_trip_group_ajax', 'nonce');
+        $place_id = sanitize_text_field(wp_unslash($_POST['place_id'] ?? ''));
+        $api_key = get_option(Terricel_Transit_Trips_Plugin::OPTION_GOOGLE_API_KEY, '');
+        if (!$api_key) {
+            wp_send_json_error(array('message' => __('Add a Google Maps API key with Places API enabled to use address lookup.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)), 400);
+        }
+        if ('' === $place_id) {
+            wp_send_json_error(array('message' => __('Select an address suggestion first.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)), 400);
+        }
+
+        $response = wp_remote_get(
+            add_query_arg(
+                array(
+                    'fields' => 'formattedAddress,displayName',
+                    'key'    => $api_key,
+                ),
+                'https://places.googleapis.com/v1/places/' . rawurlencode($place_id)
+            ),
+            array('timeout' => 10)
+        );
+
+        if (is_wp_error($response)) {
+            wp_send_json_error(array('message' => $response->get_error_message()), 500);
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        wp_send_json_success(
+            array(
+                'address' => sanitize_text_field($body['formattedAddress'] ?? ''),
+                'name'    => sanitize_text_field($body['displayName']['text'] ?? ''),
             )
         );
     }
