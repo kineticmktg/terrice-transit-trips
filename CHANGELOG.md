@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.15 - 2026-07-25
+
+- Redirected Trip Save Draft actions back to the Trips list with a saved notice.
+- Added fallback draft titles in the format "Trip - draft saved date and time" until the full trip naming fields are complete.
+- Included incomplete trip drafts without pickup dates in the default Today+ Trips list and count.
+
 ## 0.1.14 - 2026-07-25
 
 - Reworked Trip editing into a staged workflow: Trip Details, Destination & Estimates, Dates & Times, then Buses & Drivers.

@@ -373,6 +373,10 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
     }
 
     public function filter_post_redirect($location, $post_id) {
+        if (self::TRIP_POST_TYPE === get_post_type($post_id) && !empty($_POST['save'])) {
+            return add_query_arg('terricel-trip-draft-saved', 1, admin_url('edit.php?post_type=' . self::TRIP_POST_TYPE));
+        }
+
         if ((int) get_transient('terricel_trip_conflicts_' . get_current_user_id()) === absint($post_id)) {
             delete_transient('terricel_trip_conflicts_' . get_current_user_id());
             $location = add_query_arg('terricel-trip-conflicts', 1, $location);
@@ -393,6 +397,10 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
 
         if (!empty($_GET['terricel-trip-incomplete'])) {
             echo '<div class="notice notice-warning is-dismissible"><p>' . esc_html__('Trip was saved as a draft because the staged trip workflow is not complete yet.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</p></div>';
+        }
+
+        if (!empty($_GET['terricel-trip-draft-saved'])) {
+            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Trip draft saved.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</p></div>';
         }
 
         $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
@@ -936,10 +944,22 @@ JS;
         if ('all' !== $current_view) {
             $meta_query = (array) $query->get('meta_query');
             $meta_query[] = array(
-                'key'     => '_terricel_trip_pickup_date',
-                'value'   => current_time('Y-m-d'),
-                'compare' => '>=',
-                'type'    => 'DATE',
+                'relation' => 'OR',
+                array(
+                    'key'     => '_terricel_trip_pickup_date',
+                    'value'   => current_time('Y-m-d'),
+                    'compare' => '>=',
+                    'type'    => 'DATE',
+                ),
+                array(
+                    'key'     => '_terricel_trip_pickup_date',
+                    'compare' => 'NOT EXISTS',
+                ),
+                array(
+                    'key'     => '_terricel_trip_pickup_date',
+                    'value'   => '',
+                    'compare' => '=',
+                ),
             );
             $query->set('meta_query', $meta_query);
         }
@@ -1161,10 +1181,22 @@ JS;
         if ('today_plus' === $view) {
             $args['meta_query'] = array(
                 array(
-                    'key'     => '_terricel_trip_pickup_date',
-                    'value'   => current_time('Y-m-d'),
-                    'compare' => '>=',
-                    'type'    => 'DATE',
+                    'relation' => 'OR',
+                    array(
+                        'key'     => '_terricel_trip_pickup_date',
+                        'value'   => current_time('Y-m-d'),
+                        'compare' => '>=',
+                        'type'    => 'DATE',
+                    ),
+                    array(
+                        'key'     => '_terricel_trip_pickup_date',
+                        'compare' => 'NOT EXISTS',
+                    ),
+                    array(
+                        'key'     => '_terricel_trip_pickup_date',
+                        'value'   => '',
+                        'compare' => '=',
+                    ),
                 ),
             );
         }
@@ -1438,14 +1470,17 @@ JS;
     }
 
     private function maybe_update_trip_title($post_id, $post, $school_id, $group_id, $pickup_date, $location_name) {
-        if (!$school_id && !$group_id && !$pickup_date && !$location_name) {
-            return;
+        if ($school_id > 0 && $group_id > 0 && $location_name && $pickup_date) {
+            $group_name = get_the_title($group_id);
+            $school_name = $this->get_school_label($school_id);
+            $title = trim($group_name . ' (' . $school_name . ') to ' . $location_name . ' | ' . $pickup_date);
+        } else {
+            $title = sprintf(
+                __('Trip - draft saved %s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+                date_i18n('Y-m-d g:i a', current_time('timestamp'))
+            );
         }
 
-        $group_name = $group_id > 0 ? get_the_title($group_id) : __('Trip', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN);
-        $school_name = $school_id > 0 ? $this->get_school_label($school_id) : '';
-        $group_school = trim($group_name . ($school_name ? ' (' . $school_name . ')' : ''));
-        $title = trim($group_school . ($location_name ? ' to ' . $location_name : '') . ($pickup_date ? ' | ' . $pickup_date : ''));
         if (!$title || $title === $post->post_title) {
             return;
         }
