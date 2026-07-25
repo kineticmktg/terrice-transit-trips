@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.16 - 2026-07-25
+
+- Highlighted Trips Smart Monitor cards with vacant assignments using the same red vacant styling as Dispatch monitor route vacancies.
+
 ## 0.2.15 - 2026-07-25
 
 - Matched Trips Smart Monitor day counts and empty-state messages to the larger school/group and assignment text size.
