@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.31 - 2026-07-25
+
+- Fixed an infinite schedule-change loop when selecting Trip pickup dates.
+
 ## 0.1.30 - 2026-07-25
 
 - Moved the Trip Google Maps Diagnostics settings section onto the core Settings > Tools extension hook.
