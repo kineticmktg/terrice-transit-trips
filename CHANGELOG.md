@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.17 - 2026-07-25
+
+- Linked driver trip assignment notifications to the matching My Dashboard trip row with automatic section opening, scrolling, and pulse highlighting.
+
 ## 0.2.16 - 2026-07-25
 
 - Highlighted Trips Smart Monitor cards with vacant assignments using the same red vacant styling as Dispatch monitor route vacancies.

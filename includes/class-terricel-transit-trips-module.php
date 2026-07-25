@@ -503,7 +503,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
 
             if ($pickup - $now <= $driver_hours * HOUR_IN_SECONDS && !get_post_meta($trip->ID, '_terricel_trip_driver_reminder_sent', true)) {
                 foreach ($this->get_trip_assigned_driver_user_ids($trip->ID) as $user_id) {
-                    $this->queue_user_notification($user_id, 'trip_driver_reminder', __('Upcoming Trip Assignment', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_trip_notice_message($trip->ID), $this->get_driver_dashboard_url());
+                    $this->queue_user_notification($user_id, 'trip_driver_reminder', __('Upcoming Trip Assignment', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_trip_notice_message($trip->ID), $this->get_driver_dashboard_trip_url($trip->ID));
                 }
                 update_post_meta($trip->ID, '_terricel_trip_driver_reminder_sent', current_time('mysql'));
             }
@@ -517,6 +517,14 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             return;
         }
 
+        $target_trip_id = isset($_GET['terricel_trip_assignment']) ? absint($_GET['terricel_trip_assignment']) : 0;
+        $highlighted_trip_key = '';
+
+        echo '<style>';
+        echo '@keyframes terricelTripAssignmentPulse{0%{background:inherit;}25%{background:#ffedd5;}60%{background:#fff7ed;}100%{background:inherit;}}';
+        echo '.terricel-trip-dashboard-highlight td{animation:terricelTripAssignmentPulse 1.05s ease-in-out 0s 3;}';
+        echo '</style>';
+
         echo '<table class="widefat striped"><thead><tr>';
         echo '<th>' . esc_html__('Pickup', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</th>';
         echo '<th>' . esc_html__('School', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</th>';
@@ -524,7 +532,13 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         echo '<th>' . esc_html__('Map', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</th>';
         echo '</tr></thead><tbody>';
         foreach ($trips as $trip) {
-            echo '<tr>';
+            $trip_key = 'trip-' . absint($trip->ID);
+            $is_highlighted = $target_trip_id > 0 && absint($trip->ID) === $target_trip_id;
+            if ($is_highlighted) {
+                $highlighted_trip_key = $trip_key;
+            }
+
+            echo '<tr class="' . esc_attr($is_highlighted ? 'terricel-trip-dashboard-highlight' : '') . '" data-terricel-trip-assignment-key="' . esc_attr($trip_key) . '">';
             echo '<td>' . esc_html($this->format_trip_pickup($trip->ID)) . '</td>';
             echo '<td>' . esc_html($this->get_school_label((int) get_post_meta($trip->ID, '_terricel_trip_school_id', true))) . '</td>';
             echo '<td>' . esc_html(get_post_meta($trip->ID, '_terricel_trip_location_name', true)) . '</td>';
@@ -532,6 +546,12 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             echo '</tr>';
         }
         echo '</tbody></table>';
+
+        if ($highlighted_trip_key) {
+            echo '<script>';
+            echo '(function(){var key=' . wp_json_encode($highlighted_trip_key) . ';var section=document.getElementById("terricel-driver-assignments");if(section&&section.tagName.toLowerCase()==="details"){section.open=true;}var row=document.querySelector("[data-terricel-trip-assignment-key=\\"" + key.replace(/"/g,"\\\\\\"") + "\\"]");if(!row){return;}window.setTimeout(function(){row.scrollIntoView({behavior:"smooth",block:"center"});row.setAttribute("tabindex","-1");row.focus({preventScroll:true});},150);}());';
+            echo '</script>';
+        }
     }
 
     public function get_kiosk_trip_monitor_data() {
@@ -1095,7 +1115,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         foreach (array_diff($new_driver_ids, $old_driver_ids) as $driver_id) {
             $user_id = (int) get_post_meta($driver_id, '_terricel_driver_user_id', true);
             if ($user_id > 0) {
-                $this->queue_user_notification($user_id, 'trip_driver_assigned', __('New Trip Assignment', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_trip_notice_message($trip_id), $this->get_driver_dashboard_url());
+                $this->queue_user_notification($user_id, 'trip_driver_assigned', __('New Trip Assignment', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_trip_notice_message($trip_id), $this->get_driver_dashboard_trip_url($trip_id));
             }
         }
 
@@ -1501,6 +1521,16 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
 
     private function get_driver_dashboard_url() {
         return admin_url('admin.php?page=terricel-my-dashboard#terricel-driver-assignments');
+    }
+
+    private function get_driver_dashboard_trip_url($trip_id) {
+        return add_query_arg(
+            array(
+                'page'                    => 'terricel-my-dashboard',
+                'terricel_trip_assignment' => absint($trip_id),
+            ),
+            admin_url('admin.php')
+        ) . '#terricel-driver-assignments';
     }
 
     private function get_school_origin_address($school_id) {
