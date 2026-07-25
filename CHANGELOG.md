@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4 - 2026-07-24
+
+- Removed the editable Google API restricted IP field from Integrations settings.
+- Kept the Google IP warning automatic so it only appears when the saved site outbound IP no longer matches the currently detected outbound IP.
+
 ## 0.1.3 - 2026-07-24
 
 - Moved the detected site outbound IP into the collapsible Google API setup instructions.
