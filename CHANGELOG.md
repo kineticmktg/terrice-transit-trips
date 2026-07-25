@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.27 - 2026-07-25
+
+- Removed the manual Google estimate refresh control and visible status message from the Trip editor.
+- Added a Google Route Options diagnostic panel that shows returned route alternatives and marks the selected estimate route.
+
 ## 0.1.26 - 2026-07-25
 
 - Set Google route estimate departure times slightly in the future to satisfy Routes API traffic-aware timestamp validation.
