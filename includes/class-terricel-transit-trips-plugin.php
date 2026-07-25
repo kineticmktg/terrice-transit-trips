@@ -214,6 +214,19 @@ class Terricel_Transit_Trips_Plugin {
         $buffer = absint(get_option(self::OPTION_TRAVEL_BUFFER_PERCENT, 10));
 
         echo '<h2>' . esc_html__('Integrations', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</h2>';
+        echo '<details style="max-width:900px;margin:12px 0 18px;">';
+        echo '<summary style="cursor:pointer;font-weight:600;">' . esc_html__('Google Maps API setup instructions', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</summary>';
+        echo '<div style="padding:10px 0 0;">';
+        echo '<p>' . esc_html__('This plugin uses a Google Maps API key for server-side trip mileage and travel-time estimates. It does not use OAuth.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</p>';
+        echo '<ol>';
+        echo '<li>' . esc_html__('If you are on the "Create OAuth client ID" screen, click Cancel or go back. Do not create an OAuth client for this plugin.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</li>';
+        echo '<li>' . esc_html__('In Google Cloud Console, open APIs & Services, then Library, and enable Routes API.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</li>';
+        echo '<li>' . esc_html__('Open APIs & Services, then Credentials, then choose Create Credentials > API key.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</li>';
+        echo '<li>' . esc_html__('Restrict the key to the Routes API. If you add application restrictions, use a server/IP restriction that matches this WordPress server.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</li>';
+        echo '<li>' . esc_html__('Paste the API key below and save. The driver map button does not need this key; it uses a normal map URL.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</li>';
+        echo '</ol>';
+        echo '</div>';
+        echo '</details>';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         wp_nonce_field('terricel_trips_save_integrations');
         echo '<input type="hidden" name="action" value="terricel_trips_save_integrations">';

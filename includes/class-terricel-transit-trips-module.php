@@ -685,29 +685,42 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             return array('miles' => 0, 'minutes' => 0);
         }
 
-        $url = add_query_arg(
+        $url = add_query_arg(array('key' => $api_key), 'https://routes.googleapis.com/directions/v2:computeRoutes');
+        $response = wp_remote_post(
+            $url,
             array(
-                'origins'      => $origin,
-                'destinations' => $destination,
-                'units'        => 'imperial',
-                'key'          => $api_key,
-            ),
-            'https://maps.googleapis.com/maps/api/distancematrix/json'
+                'timeout' => 8,
+                'headers' => array(
+                    'Content-Type' => 'application/json',
+                    'X-Goog-FieldMask' => 'routes.distanceMeters,routes.duration',
+                ),
+                'body' => wp_json_encode(
+                    array(
+                        'origin' => array(
+                            'address' => $origin,
+                        ),
+                        'destination' => array(
+                            'address' => $destination,
+                        ),
+                        'travelMode' => 'DRIVE',
+                        'units' => 'IMPERIAL',
+                    )
+                ),
+            )
         );
-        $response = wp_remote_get($url, array('timeout' => 8));
         if (is_wp_error($response)) {
             return array('miles' => 0, 'minutes' => 0);
         }
 
         $body = json_decode(wp_remote_retrieve_body($response), true);
-        $element = $body['rows'][0]['elements'][0] ?? array();
-        if (($element['status'] ?? '') !== 'OK') {
+        $route = $body['routes'][0] ?? array();
+        if (empty($route['distanceMeters']) || empty($route['duration'])) {
             return array('miles' => 0, 'minutes' => 0);
         }
 
         $buffer = absint(get_option(Terricel_Transit_Trips_Plugin::OPTION_TRAVEL_BUFFER_PERCENT, 10));
-        $one_way_meters = (float) ($element['distance']['value'] ?? 0);
-        $one_way_seconds = (float) ($element['duration']['value'] ?? 0);
+        $one_way_meters = (float) $route['distanceMeters'];
+        $one_way_seconds = (float) rtrim((string) $route['duration'], 's');
 
         return array(
             'miles'   => round(($one_way_meters / 1609.344) * 2, 1),
