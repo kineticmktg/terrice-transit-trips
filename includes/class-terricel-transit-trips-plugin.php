@@ -221,6 +221,7 @@ class Terricel_Transit_Trips_Plugin {
         echo '<summary style="cursor:pointer;font-weight:600;">' . esc_html__('Google Maps API setup instructions', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</summary>';
         echo '<div style="padding:10px 0 0;">';
         echo '<p>' . esc_html__('This plugin uses a Google Maps API key for server-side trip mileage and travel-time estimates. It does not use OAuth.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</p>';
+        echo '<p><strong>' . esc_html__('Detected site outbound IP:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</strong> <code>' . esc_html($site_ip ? $site_ip : __('Unable to detect', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)) . '</code></p>';
         echo '<ol>';
         echo '<li>' . esc_html__('If you are on the "Create OAuth client ID" screen, click Cancel or go back. Do not create an OAuth client for this plugin.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</li>';
         echo '<li>' . esc_html__('In Google Cloud Console, open APIs & Services, then Library, and enable Routes API.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</li>';
@@ -242,9 +243,6 @@ class Terricel_Transit_Trips_Plugin {
         echo '<table class="form-table" role="presentation"><tbody>';
         echo '<tr><th scope="row"><label for="terricel_trips_google_api_key">' . esc_html__('Google Maps API Key', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</label></th>';
         echo '<td><input class="regular-text" type="password" id="terricel_trips_google_api_key" name="terricel_trips_google_api_key" value="' . esc_attr($api_key) . '" autocomplete="off"></td></tr>';
-        echo '<tr><th scope="row">' . esc_html__('Detected Site Outbound IP', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</th>';
-        echo '<td><code>' . esc_html($site_ip ? $site_ip : __('Unable to detect', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)) . '</code> ';
-        echo '<span class="description">' . esc_html__('Use this IP address in Google Cloud API key Application restrictions.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</span></td></tr>';
         echo '<tr><th scope="row"><label for="terricel_trips_google_restricted_ip">' . esc_html__('Google API Restricted IP', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</label></th>';
         echo '<td><input class="regular-text" type="text" id="terricel_trips_google_restricted_ip" name="terricel_trips_google_restricted_ip" value="' . esc_attr($restricted_ip) . '" placeholder="' . esc_attr($site_ip) . '"> ';
         echo '<p class="description">' . esc_html__('Enter the IP address saved in Google Cloud for this API key. If it does not match the detected site IP, the plugin will show a warning.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</p></td></tr>';
