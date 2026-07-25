@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.36 - 2026-07-25
+
+- Added published-trip Actuals rows under each bus assignment for yard, departure, arrival, return, post-trip times, and mileage capture.
+
+## 0.1.35 - 2026-07-25
+
+- Linked the Trips list Advisor column to the selected school group record.
+- Changed the trip estimate info icon from hover text to a click-open popover.
+
 ## 0.1.34 - 2026-07-25
 
 - Expanded the Trips admin list columns to include advisor, return time, assignment slot details, and last modified user attribution.
