@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.19 - 2026-07-25
+
+- Added Location Name lookup with selectable place suggestions that fill destination address.
+- Biased location-name lookup toward the selected school's stored address.
+- Added Geocoding API fallback for destination lookup when Places Text Search is blocked.
+- Updated Google integration instructions to include Geocoding API.
+
 ## 0.1.18 - 2026-07-25
 
 - Removed the manual draft suffix from Trip titles so WordPress owns draft labeling.

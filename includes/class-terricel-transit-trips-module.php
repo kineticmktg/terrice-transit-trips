@@ -169,7 +169,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         $maps_url = $this->get_trip_maps_url($post->ID);
 
         echo '<p><label for="terricel_trip_location_name"><strong>' . esc_html__('Location Name', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</strong></label></p>';
-        echo '<p><input class="widefat" type="text" id="terricel_trip_location_name" name="terricel_trip_location_name" value="' . esc_attr($name) . '"></p>';
+        echo '<div class="terricel-address-lookup"><input class="widefat" type="text" id="terricel_trip_location_name" name="terricel_trip_location_name" value="' . esc_attr($name) . '" autocomplete="off"><div id="terricel_trip_location_suggestions" class="terricel-address-suggestions" hidden></div></div>';
         echo '<p><label for="terricel_trip_destination_address"><strong>' . esc_html__('Destination Address', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</strong></label></p>';
         echo '<div class="terricel-address-lookup"><input class="widefat" type="text" id="terricel_trip_destination_address" name="terricel_trip_destination_address" value="' . esc_attr($address) . '" autocomplete="off"><div id="terricel_trip_address_suggestions" class="terricel-address-suggestions" hidden></div></div>';
         echo '<div class="terricel-trip-grid">';
@@ -835,7 +835,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
                 'requiredGroup'     => __('Enter the group name and advisor first and last name.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
                 'addressLoading'    => __('Searching addresses...', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
                 'addressEmpty'      => __('No address suggestions found.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
-                'addressMissingKey' => __('Add a Google Maps API key with Places API enabled to use address lookup.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+                'addressMissingKey' => __('Add a Google Maps API key with Places API (New) or Geocoding API enabled to use lookup.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
                 'publishBlocked'    => __('Complete the staged trip workflow before publishing. Save Draft is still available.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
                 'error'             => __('Unable to complete the request.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
             ),
@@ -871,7 +871,7 @@ function recalcReturn(){var estimate=travelMinutes?parseInt(travelMinutes.value,
 function syncDates(){var pickupDate=document.querySelector("[name='terricel_trip_pickup_date']");["arrival","departure","return"].forEach(function(key){["date","time"].forEach(function(part){var input=document.querySelector("[name='terricel_trip_"+key+"_"+part+"']");if(input){input.addEventListener("input",function(){input.dataset.terricelDefaulted="0";});}});});document.querySelectorAll("#terricel_trip_schedule input").forEach(function(input){input.addEventListener("change",function(){if(pickupDate&&pickupDate.value){["arrival","departure","return"].forEach(function(key){setInput("terricel_trip_"+key+"_date",pickupDate.value);});}recalcArrival();recalcReturn();syncWorkflow();});});}
 function requestEstimate(){if(!destination||!destination.value.trim()||parseInt(school.value,10)<1){syncWorkflow();return;}post("terricel_trip_destination_estimate",{school_id:school.value,destination:destination.value}).then(function(data){if(data.estimate){if(mileage&&(!mileage.value||mileage.dataset.terricelAuto==="1")){mileage.value=data.estimate.miles||"";mileage.dataset.terricelAuto="1";}if(travelMinutes&&(!travelMinutes.value||travelMinutes.dataset.terricelAuto==="1")){travelMinutes.value=data.estimate.minutes||"";travelMinutes.dataset.terricelAuto="1";}recalcArrival();recalcReturn();syncWorkflow();}}).catch(function(){syncWorkflow();});}
 function syncBusSlots(){var needed=document.getElementById("terricel_trip_buses_needed");var rows=document.getElementById("terricel_trip_assignment_rows");var template=document.getElementById("terricel_trip_assignment_row_template");if(!needed||!rows||!template){return;}function apply(){var count=Math.max(0,Math.min(50,parseInt(needed.value,10)||0));while(rows.children.length>count){rows.removeChild(rows.lastElementChild);}while(rows.children.length<count){var index=rows.children.length;var holder=document.createElement("tbody");holder.innerHTML=template.innerHTML.replace(/__INDEX__/g,String(index)).replace(/__NUMBER__/g,String(index+1));rows.appendChild(holder.firstElementChild);}}needed.addEventListener("input",apply);needed.addEventListener("change",apply);apply();}
-function initAddressLookup(){var menu=document.getElementById("terricel_trip_address_suggestions");if(!destination||!menu){return;}var timer=0;function hide(){menu.hidden=true;menu.innerHTML="";}function showMessage(text){menu.innerHTML="<div class=\"terricel-address-suggestion\"><span></span></div>";menu.querySelector("span").textContent=text;menu.hidden=false;}function render(items){menu.innerHTML="";if(!items.length){showMessage(config.strings.addressEmpty);return;}items.forEach(function(item){var button=document.createElement("button");button.type="button";button.className="terricel-address-suggestion";button.dataset.placeId=item.placeId;var main=document.createElement("strong");main.textContent=item.mainText||item.text;var secondary=document.createElement("span");secondary.textContent=item.secondaryText||"";button.appendChild(main);button.appendChild(secondary);menu.appendChild(button);});menu.hidden=false;}destination.addEventListener("input",function(){destination.dataset.terricelManual="1";window.clearTimeout(timer);var text=destination.value.trim();if(text.length<3){hide();syncWorkflow();return;}timer=window.setTimeout(function(){showMessage(config.strings.addressLoading);post("terricel_trip_address_suggestions",{input:text}).then(function(data){render(data.suggestions||[]);}).catch(function(error){showMessage(error.message||config.strings.addressMissingKey);});},350);syncWorkflow();});destination.addEventListener("change",requestEstimate);menu.addEventListener("click",function(event){var button=event.target.closest(".terricel-address-suggestion");if(!button||!button.dataset.placeId){return;}post("terricel_trip_place_details",{place_id:button.dataset.placeId}).then(function(data){if(data.address){destination.value=data.address;}if(locationName&&data.name&&!locationName.value.trim()){locationName.value=data.name;}hide();requestEstimate();syncWorkflow();}).catch(function(error){showMessage(error.message);});});document.addEventListener("click",function(event){if(!menu.contains(event.target)&&event.target!==destination){hide();}});}
+function initAddressLookup(){function setup(input,menu,mode){if(!input||!menu){return;}var timer=0;function hide(){menu.hidden=true;menu.innerHTML="";}function showMessage(text){menu.innerHTML="<div class=\"terricel-address-suggestion\"><span></span></div>";menu.querySelector("span").textContent=text;menu.hidden=false;}function render(items){menu.innerHTML="";if(!items.length){showMessage(config.strings.addressEmpty);return;}items.forEach(function(item){var button=document.createElement("button");button.type="button";button.className="terricel-address-suggestion";button.dataset.placeId=item.placeId||"";button.dataset.address=item.address||"";button.dataset.name=item.name||"";var main=document.createElement("strong");main.textContent=item.mainText||item.text;var secondary=document.createElement("span");secondary.textContent=item.secondaryText||"";button.appendChild(main);button.appendChild(secondary);menu.appendChild(button);});menu.hidden=false;}input.addEventListener("input",function(){input.dataset.terricelManual="1";window.clearTimeout(timer);var text=input.value.trim();if(text.length<3){hide();syncWorkflow();return;}timer=window.setTimeout(function(){showMessage(config.strings.addressLoading);post("terricel_trip_address_suggestions",{input:text,school_id:school.value,mode:mode}).then(function(data){render(data.suggestions||[]);}).catch(function(error){showMessage(error.message||config.strings.addressMissingKey);});},350);syncWorkflow();});menu.addEventListener("click",function(event){var button=event.target.closest(".terricel-address-suggestion");if(!button){return;}if(button.dataset.name&&locationName){locationName.value=button.dataset.name;}if(button.dataset.address&&destination){destination.value=button.dataset.address;}hide();requestEstimate();syncWorkflow();});document.addEventListener("click",function(event){if(!menu.contains(event.target)&&event.target!==input){hide();}});}setup(locationName,document.getElementById("terricel_trip_location_suggestions"),"location");setup(destination,document.getElementById("terricel_trip_address_suggestions"),"address");if(destination){destination.addEventListener("change",requestEstimate);}}
 school.addEventListener("change",function(){if(panel){panel.hidden=true;}loadGroups();requestEstimate();});group.addEventListener("change",syncWorkflow);if(locationName){locationName.addEventListener("input",syncWorkflow);}if(mileage){mileage.addEventListener("input",function(){mileage.dataset.terricelAuto="0";});}if(travelMinutes){travelMinutes.addEventListener("input",function(){travelMinutes.dataset.terricelAuto="0";recalcArrival();recalcReturn();syncWorkflow();});}
 if(toggle&&panel){toggle.addEventListener("click",function(){if(parseInt(school.value,10)<1){setMessage(config.strings.selectSchool,true);return;}panel.hidden=!panel.hidden;if(!panel.hidden){var name=document.getElementById("terricel_trip_new_group_name");if(name){name.focus();}}});}
 if(cancel&&panel){cancel.addEventListener("click",function(){panel.hidden=true;setMessage("");});}
@@ -1309,16 +1309,27 @@ JS;
 
         check_ajax_referer('terricel_trip_group_ajax', 'nonce');
         $input = sanitize_text_field(wp_unslash($_POST['input'] ?? ''));
+        $school_id = absint($_POST['school_id'] ?? 0);
+        $mode = sanitize_key(wp_unslash($_POST['mode'] ?? 'address'));
         if (strlen($input) < 3) {
             wp_send_json_success(array('suggestions' => array()));
         }
 
         $api_key = get_option(Terricel_Transit_Trips_Plugin::OPTION_GOOGLE_API_KEY, '');
         if (!$api_key) {
-            wp_send_json_error(array('message' => __('Add a Google Maps API key with Places API enabled to use address lookup.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)), 400);
+            wp_send_json_error(array('message' => __('Add a Google Maps API key with Places API (New) or Geocoding API enabled to use lookup.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)), 400);
         }
 
-        $suggestions = $this->get_text_search_suggestions($api_key, $input);
+        $suggestions = $this->get_text_search_suggestions($api_key, $input, $school_id, 'location' === $mode);
+        if (is_wp_error($suggestions)) {
+            $fallback = $this->get_geocoding_suggestions($api_key, $input);
+            if (!is_wp_error($fallback)) {
+                $suggestions = $fallback;
+            }
+        }
+        if (is_wp_error($suggestions)) {
+            wp_send_json_error(array('message' => $suggestions->get_error_message()), 400);
+        }
 
         wp_send_json_success(array('suggestions' => $suggestions));
     }
@@ -1382,7 +1393,15 @@ JS;
         wp_send_json_success(array('estimate' => $estimate));
     }
 
-    private function get_text_search_suggestions($api_key, $input) {
+    private function get_text_search_suggestions($api_key, $input, $school_id = 0, $bias_to_school = false) {
+        $query = $input;
+        if ($bias_to_school && $school_id > 0) {
+            $origin = $this->get_school_origin_address($school_id);
+            if ($origin) {
+                $query .= ' near ' . $origin;
+            }
+        }
+
         $response = wp_remote_post(
             'https://places.googleapis.com/v1/places:searchText',
             array(
@@ -1394,7 +1413,7 @@ JS;
                 ),
                 'body'    => wp_json_encode(
                     array(
-                        'textQuery'    => $input,
+                        'textQuery'    => $query,
                         'languageCode' => 'en',
                         'regionCode'   => 'US',
                     )
@@ -1403,12 +1422,12 @@ JS;
         );
 
         if (is_wp_error($response)) {
-            wp_send_json_error(array('message' => $response->get_error_message()), 500);
+            return $response;
         }
 
         $body = json_decode(wp_remote_retrieve_body($response), true);
         if (!empty($body['error']['message'])) {
-            wp_send_json_error(array('message' => sanitize_text_field($body['error']['message'])), 400);
+            return new WP_Error('terricel_places_text_search_error', sanitize_text_field($body['error']['message']));
         }
 
         $suggestions = array();
@@ -1422,10 +1441,69 @@ JS;
                 'text'          => sanitize_text_field($place['displayName']['text'] ?? $place['formattedAddress'] ?? ''),
                 'mainText'      => sanitize_text_field($place['displayName']['text'] ?? $place['formattedAddress'] ?? ''),
                 'secondaryText' => sanitize_text_field($place['formattedAddress'] ?? ''),
+                'address'       => sanitize_text_field($place['formattedAddress'] ?? ''),
+                'name'          => sanitize_text_field($place['displayName']['text'] ?? ''),
             );
         }
 
         return $suggestions;
+    }
+
+    private function get_geocoding_suggestions($api_key, $input) {
+        $response = wp_remote_get(
+            add_query_arg(
+                array(
+                    'address' => $input,
+                    'region'  => 'us',
+                    'key'     => $api_key,
+                ),
+                'https://maps.googleapis.com/maps/api/geocode/json'
+            ),
+            array('timeout' => 10)
+        );
+
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        if (!empty($body['error_message'])) {
+            return new WP_Error('terricel_geocoding_error', sanitize_text_field($body['error_message']));
+        }
+        if (!empty($body['status']) && !in_array($body['status'], array('OK', 'ZERO_RESULTS'), true)) {
+            return new WP_Error('terricel_geocoding_status', sanitize_text_field($body['status']));
+        }
+
+        $suggestions = array();
+        foreach (array_slice(($body['results'] ?? array()), 0, 5) as $result) {
+            $address = sanitize_text_field($result['formatted_address'] ?? '');
+            if (!$address) {
+                continue;
+            }
+
+            $name = $this->get_geocoding_result_name($result, $address);
+            $suggestions[] = array(
+                'placeId'       => sanitize_text_field($result['place_id'] ?? ''),
+                'text'          => $address,
+                'mainText'      => $name,
+                'secondaryText' => $address,
+                'address'       => $address,
+                'name'          => $name,
+            );
+        }
+
+        return $suggestions;
+    }
+
+    private function get_geocoding_result_name($result, $fallback) {
+        foreach (($result['address_components'] ?? array()) as $component) {
+            $types = $component['types'] ?? array();
+            if (in_array('establishment', $types, true) || in_array('point_of_interest', $types, true) || in_array('premise', $types, true)) {
+                return sanitize_text_field($component['long_name'] ?? $fallback);
+            }
+        }
+
+        return sanitize_text_field($fallback);
     }
 
     private function maybe_update_trip_title($post_id, $post, $school_id, $group_id, $pickup_date, $location_name) {

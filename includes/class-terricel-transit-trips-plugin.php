@@ -224,9 +224,9 @@ class Terricel_Transit_Trips_Plugin {
         echo '<p><strong>' . esc_html__('Detected site outbound IP:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</strong> <code>' . esc_html($site_ip ? $site_ip : __('Unable to detect', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)) . '</code></p>';
         echo '<ol>';
         echo '<li>' . esc_html__('If you are on the "Create OAuth client ID" screen, click Cancel or go back. Do not create an OAuth client for this plugin.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</li>';
-        echo '<li>' . esc_html__('In Google Cloud Console, open APIs & Services, then Library, and enable Routes API and Places API (New).', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</li>';
+        echo '<li>' . esc_html__('In Google Cloud Console, open APIs & Services, then Library, and enable Routes API, Places API (New), and Geocoding API.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</li>';
         echo '<li>' . esc_html__('Open APIs & Services, then Credentials, then choose Create Credentials > API key.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</li>';
-        echo '<li>' . esc_html__('Restrict the key to Routes API and Places API (New), then set Application restrictions to IP addresses.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</li>';
+        echo '<li>' . esc_html__('Restrict the key to Routes API, Places API (New), and Geocoding API, then set Application restrictions to IP addresses.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</li>';
         echo '<li>' . esc_html__('Add this WordPress server outbound IP address in Google Cloud API key Application restrictions.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</li>';
         echo '<li>' . esc_html__('Paste the API key below and save. The driver map button does not need this key; it uses a normal map URL.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</li>';
         echo '</ol>';

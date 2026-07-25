@@ -3,7 +3,7 @@
  * Plugin Name: Terricel Transit Trips
  * Plugin URI: https://kineticmktg.com
  * Description: Child trip coordination module for Terricel Transit Operations.
- * Version: 0.1.18
+ * Version: 0.1.19
  * Author: Kinetic Marketing LLC
  * Author URI: https://kineticmktg.com
  * License: GPL v2 or later
@@ -15,7 +15,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('TERRICEL_TRANSIT_TRIPS_VERSION', '0.1.18');
+define('TERRICEL_TRANSIT_TRIPS_VERSION', '0.1.19');
 define('TERRICEL_TRANSIT_TRIPS_FILE', __FILE__);
 define('TERRICEL_TRANSIT_TRIPS_PATH', plugin_dir_path(__FILE__));
 define('TERRICEL_TRANSIT_TRIPS_URL', plugin_dir_url(__FILE__));
