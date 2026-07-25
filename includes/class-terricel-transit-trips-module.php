@@ -1470,16 +1470,20 @@ JS;
     }
 
     private function maybe_update_trip_title($post_id, $post, $school_id, $group_id, $pickup_date, $location_name) {
-        if ($school_id > 0 && $group_id > 0 && $location_name && $pickup_date) {
+        $parts = array();
+        if ($group_id > 0) {
             $group_name = get_the_title($group_id);
-            $school_name = $this->get_school_label($school_id);
-            $title = trim($group_name . ' (' . $school_name . ') to ' . $location_name . ' | ' . $pickup_date);
-        } else {
-            $title = sprintf(
-                __('Trip - draft saved %s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
-                date_i18n('Y-m-d g:i a', current_time('timestamp'))
-            );
+            $school_name = $school_id > 0 ? $this->get_school_label($school_id) : '';
+            $parts[] = trim($group_name . ($school_name ? ' (' . $school_name . ')' : ''));
         }
+        if ($location_name) {
+            $parts[] = 'to ' . $location_name;
+        }
+        if ($pickup_date) {
+            $parts[] = '| ' . $pickup_date;
+        }
+
+        $title = 'Trip' . (!empty($parts) ? ' ' . implode(' ', $parts) : '') . (('publish' === get_post_status($post_id) && $this->trip_is_ready_to_publish($post_id)) ? '' : ' - DRAFT');
 
         if (!$title || $title === $post->post_title) {
             return;

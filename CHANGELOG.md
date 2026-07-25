@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.16 - 2026-07-25
+
+- Updated draft trip titles to use available trip fields and end with "- DRAFT".
+
 ## 0.1.15 - 2026-07-25
 
 - Redirected Trip Save Draft actions back to the Trips list with a saved notice.
