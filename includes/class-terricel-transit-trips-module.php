@@ -195,6 +195,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         $return_date = get_post_meta($post->ID, '_terricel_trip_return_date', true);
         $return_time = get_post_meta($post->ID, '_terricel_trip_return_time', true);
 
+        $this->render_time_suggestions();
         echo '<div class="terricel-trip-schedule-grid">';
         $this->render_date_time_field('pickup', __('Pickup', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $pickup_date, $pickup_time);
         $this->render_date_time_field('arrival', __('Arrival', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $arrival_date ? $arrival_date : $pickup_date, $arrival_time);
@@ -932,7 +933,9 @@ function ready(callback){if(document.readyState==="loading"){document.addEventLi
 function option(value,label){var item=document.createElement("option");item.value=String(value);item.textContent=label;return item;}
 function post(action,data){data.action=action;data.nonce=config.nonce;return fetch(config.ajaxUrl,{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/x-www-form-urlencoded; charset=UTF-8"},body:new URLSearchParams(data).toString()}).then(function(response){return response.json();}).then(function(json){if(!json||!json.success){throw new Error(json&&json.data&&json.data.message?json.data.message:config.strings.error);}return json.data;});}
 function value(name){var input=document.querySelector("[name='"+name+"']");return input?input.value.trim():"";}
-function setInput(name,nextValue,autoFlag){var input=document.querySelector("[name='"+name+"']");if(!input||input.value===nextValue){return;}if(!input.value||input.dataset.terricelDefaulted==="1"||autoFlag==="force"){input.value=nextValue;input.dataset.terricelDefaulted="1";}}
+function setInput(name,nextValue,autoFlag){var input=document.querySelector("[name='"+name+"']");if(!input||input.value===nextValue){return;}if(!input.value||input.dataset.terricelDefaulted==="1"||autoFlag==="force"){input.value=nextValue;input.dataset.terricelDefaulted="1";var display=document.querySelector("[data-time-target='"+name+"']");if(display){display.value=formatFriendlyTime(nextValue);display.dataset.terricelDefaulted="1";}}}
+function parseFriendlyTime(text){var raw=String(text||"").trim().toLowerCase().replace(/\s+/g,"");if(!raw){return "";}var meridiem="";if(raw.endsWith("am")||raw.endsWith("a")){meridiem="am";raw=raw.replace(/a(?:m)?$/,"");}else if(raw.endsWith("pm")||raw.endsWith("p")){meridiem="pm";raw=raw.replace(/p(?:m)?$/,"");}var hour=0;var minute=0;if(raw.indexOf(":")>-1){var parts=raw.split(":");hour=parseInt(parts[0],10);minute=parseInt(parts[1],10);}else if(/^\d{3,4}$/.test(raw)){hour=parseInt(raw.slice(0,-2),10);minute=parseInt(raw.slice(-2),10);}else if(/^\d{1,2}$/.test(raw)){hour=parseInt(raw,10);minute=0;}else{return "";}if(isNaN(hour)||isNaN(minute)||minute<0||minute>59){return "";}if(meridiem){if(hour<1||hour>12){return "";}if(meridiem==="pm"&&hour<12){hour+=12;}if(meridiem==="am"&&hour===12){hour=0;}}else if(hour<0||hour>23){return "";}return String(hour).padStart(2,"0")+":"+String(minute).padStart(2,"0");}
+function formatFriendlyTime(value){var parts=String(value||"").split(":");if(parts.length<2){return "";}var hour=parseInt(parts[0],10);var minute=parseInt(parts[1],10);if(isNaN(hour)||isNaN(minute)){return "";}var suffix=hour>=12?"PM":"AM";var displayHour=hour%12;if(displayHour===0){displayHour=12;}return String(displayHour).padStart(2,"0")+":"+String(minute).padStart(2,"0")+" "+suffix;}
 function addMinutes(dateValue,timeValue,minutes){if(!dateValue||!timeValue||!minutes){return null;}var parts=dateValue.split("-");var clock=timeValue.split(":");var date=new Date(Number(parts[0]),Number(parts[1])-1,Number(parts[2]),Number(clock[0]),Number(clock[1]));if(isNaN(date.getTime())){return null;}date.setMinutes(date.getMinutes()+Number(minutes));return {date:date.getFullYear()+"-"+String(date.getMonth()+1).padStart(2,"0")+"-"+String(date.getDate()).padStart(2,"0"),time:String(date.getHours()).padStart(2,"0")+":"+String(date.getMinutes()).padStart(2,"0")};}
 ready(function(){
 var school=document.getElementById("terricel_trip_school_id");var group=document.getElementById("terricel_trip_group_id");if(!school||!group){return;}
@@ -955,6 +958,7 @@ function clearPanel(){if(!panel){return;}panel.querySelectorAll("input").forEach
 function recalcArrival(){var estimate=travelMinutes?parseInt(travelMinutes.value,10):0;var next=addMinutes(value("terricel_trip_pickup_date"),value("terricel_trip_pickup_time"),estimate);if(next){setInput("terricel_trip_arrival_date",next.date);setInput("terricel_trip_arrival_time",next.time);}}
 function recalcReturn(){var estimate=travelMinutes?parseInt(travelMinutes.value,10):0;var next=addMinutes(value("terricel_trip_departure_date"),value("terricel_trip_departure_time"),estimate);if(next){setInput("terricel_trip_return_date",next.date);setInput("terricel_trip_return_time",next.time);}}
 function syncDates(){var pickupDate=document.querySelector("[name='terricel_trip_pickup_date']");["arrival","departure","return"].forEach(function(key){["date","time"].forEach(function(part){var input=document.querySelector("[name='terricel_trip_"+key+"_"+part+"']");if(input){input.addEventListener("input",function(){input.dataset.terricelDefaulted="0";});}});});document.querySelectorAll("#terricel_trip_schedule input").forEach(function(input){input.addEventListener("change",function(){if(pickupDate&&pickupDate.value){["arrival","departure","return"].forEach(function(key){setInput("terricel_trip_"+key+"_date",pickupDate.value);});}recalcArrival();recalcReturn();syncWorkflow();});});}
+function syncTimeInputs(){document.querySelectorAll(".terricel-trip-time-input").forEach(function(display){var target=document.querySelector("[name='"+display.dataset.timeTarget+"']");if(!target){return;}function apply(normalize){if(!display.value.trim()){target.value="";target.dataset.terricelDefaulted="0";return;}var parsed=parseFriendlyTime(display.value);if(parsed){target.value=parsed;target.dataset.terricelDefaulted=display.dataset.terricelDefaulted==="1"?"1":"0";if(normalize){display.value=formatFriendlyTime(parsed);}}}display.addEventListener("input",function(){display.dataset.terricelDefaulted="0";if(target){target.dataset.terricelDefaulted="0";}apply(false);});display.addEventListener("change",function(){apply(true);});display.addEventListener("blur",function(){apply(true);});});}
 function renderRouteOptions(estimate){if(!config.googleDiagnostics||!routeOptions||!routeOptionsList){return;}routeOptionsList.innerHTML="";var items=estimate&&estimate.route_options?estimate.route_options:[];if(!items.length){routeOptions.hidden=true;return;}var summary=document.createElement("div");summary.className="terricel-route-summary";var from=document.createElement("p");from.textContent="Estimated from: "+(estimate.origin||"");var to=document.createElement("p");to.textContent="Estimated to: "+(estimate.destination||"");summary.appendChild(from);summary.appendChild(to);if(estimate.maps_url){var link=document.createElement("a");link.href=estimate.maps_url;link.target="_blank";link.rel="noopener";link.textContent="Open this same route in Google Maps";summary.appendChild(link);}routeOptionsList.appendChild(summary);items.forEach(function(item){var row=document.createElement("div");row.className="terricel-route-option";var label=document.createElement("strong");label.textContent="Route "+item.index+(item.selected?" - Selected":"");if(item.selected){label.className="terricel-route-selected";}var details=document.createElement("div");var title=document.createElement("strong");title.textContent=item.description||"Google route option";var facts=document.createElement("span");facts.textContent=item.minutes+" min one-way ("+item.buffered_minutes+" min with buffer), "+item.one_way_miles+" mi one-way, "+item.round_trip_miles+" mi round trip";details.appendChild(title);details.appendChild(facts);row.appendChild(label);row.appendChild(details);routeOptionsList.appendChild(row);});routeOptions.hidden=false;}
 function requestEstimate(force){if(!destination||!destination.value.trim()||parseInt(school.value,10)<1){syncWorkflow();return;}post("terricel_trip_destination_estimate",{school_id:school.value,destination:destination.value}).then(function(data){if(data.estimate){if(mileage&&(force||!mileage.value||mileage.dataset.terricelAuto==="1")){mileage.value=data.estimate.miles?String(Math.ceil(Number(data.estimate.miles))):"";mileage.dataset.terricelAuto="1";}if(travelMinutes&&(force||!travelMinutes.value||travelMinutes.dataset.terricelAuto==="1")){travelMinutes.value=data.estimate.minutes?String(Math.ceil(Number(data.estimate.minutes))):"";travelMinutes.dataset.terricelAuto="1";}renderRouteOptions(data.estimate);recalcArrival();recalcReturn();syncWorkflow();}}).catch(function(error){renderRouteOptions(null);if(window.console){window.console.warn("Terricel trip estimate failed",error);}syncWorkflow();});}
 function scheduleEstimate(force){window.clearTimeout(estimateTimer);estimateTimer=window.setTimeout(function(){requestEstimate(force);},650);}
@@ -964,7 +968,7 @@ school.addEventListener("change",function(){if(panel){panel.hidden=true;}loadGro
 if(toggle&&panel){toggle.addEventListener("click",function(){if(parseInt(school.value,10)<1){setMessage(config.strings.selectSchool,true);return;}panel.hidden=!panel.hidden;if(!panel.hidden){var name=document.getElementById("terricel_trip_new_group_name");if(name){name.focus();}}});}
 if(cancel&&panel){cancel.addEventListener("click",function(){panel.hidden=true;setMessage("");});}
 if(save){save.addEventListener("click",function(){var name=document.getElementById("terricel_trip_new_group_name");var first=document.getElementById("terricel_trip_new_group_advisor_first_name");var last=document.getElementById("terricel_trip_new_group_advisor_last_name");var required=[name,first,last];var missing=required.find(function(input){return !input||!input.value.trim();});if(missing){setMessage(config.strings.requiredGroup,true);missing.focus();return;}if(parseInt(school.value,10)<1){setMessage(config.strings.selectSchool,true);return;}save.disabled=true;setMessage(config.strings.saving,false);post("terricel_create_trip_group",{school_id:school.value,group_name:name.value,advisor_first_name:first.value,advisor_last_name:last.value,advisor_main_phone:(document.getElementById("terricel_trip_new_group_advisor_main_phone")||{}).value||"",advisor_main_phone_extension:(document.getElementById("terricel_trip_new_group_advisor_main_phone_extension")||{}).value||"",advisor_emergency_phone:(document.getElementById("terricel_trip_new_group_advisor_emergency_phone")||{}).value||"",advisor_email:(document.getElementById("terricel_trip_new_group_advisor_email")||{}).value||""}).then(function(data){if(data.group){var row=option(data.group.id,data.group.label);row.selected=true;group.appendChild(row);group.value=String(data.group.id);}clearPanel();if(panel){panel.hidden=true;}setMessage(config.strings.saved,false);syncWorkflow();}).catch(function(error){setMessage(error.message,true);}).finally(function(){save.disabled=false;});});}
-syncDates();syncBusSlots();initAddressLookup();if(destination&&destination.value.trim()&&parseInt(school.value,10)>0){requestEstimate(true);}syncWorkflow();
+syncTimeInputs();syncDates();syncBusSlots();initAddressLookup();if(destination&&destination.value.trim()&&parseInt(school.value,10)>0){requestEstimate(true);}syncWorkflow();
 });
 }(__CONFIG__));
 JS;
@@ -1180,11 +1184,31 @@ JS;
     }
 
     private function render_date_time_field($key, $label, $date, $time) {
+        $name = 'terricel_trip_' . $key . '_time';
         echo '<div class="terricel-trip-time-card" data-trip-time-card="' . esc_attr($key) . '">';
         echo '<strong>' . esc_html($label) . '</strong>';
         echo '<label><span>' . esc_html__('Date', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</span><input type="date" name="terricel_trip_' . esc_attr($key) . '_date" value="' . esc_attr($date) . '"></label>';
-        echo '<label><span>' . esc_html__('Time', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</span><input type="time" name="terricel_trip_' . esc_attr($key) . '_time" value="' . esc_attr($time) . '"></label>';
+        echo '<label><span>' . esc_html__('Time', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</span><input type="text" class="terricel-trip-time-input" data-time-target="' . esc_attr($name) . '" value="' . esc_attr($this->format_time_display($time)) . '" placeholder="' . esc_attr__('8:00 AM', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '" list="terricel_trip_time_suggestions" inputmode="numeric" autocomplete="off"><input type="hidden" name="' . esc_attr($name) . '" value="' . esc_attr($time) . '"></label>';
         echo '</div>';
+    }
+
+    private function render_time_suggestions() {
+        echo '<datalist id="terricel_trip_time_suggestions">';
+        for ($hour = 5; $hour <= 22; $hour++) {
+            foreach (array(0, 15, 30, 45) as $minute) {
+                $value = sprintf('%02d:%02d', $hour, $minute);
+                echo '<option value="' . esc_attr($this->format_time_display($value)) . '">';
+            }
+        }
+        echo '</datalist>';
+    }
+
+    private function format_time_display($time) {
+        if (!$this->sanitize_time($time)) {
+            return '';
+        }
+
+        return date('h:i A', strtotime('1970-01-01 ' . $time));
     }
 
     private function get_bus_select($name, $selected, $trip_id) {

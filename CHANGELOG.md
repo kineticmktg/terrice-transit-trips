@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.32 - 2026-07-25
+
+- Replaced native Trip time pickers with friendly typed time inputs that normalize to saved 24-hour times.
+
 ## 0.1.31 - 2026-07-25
 
 - Fixed an infinite schedule-change loop when selecting Trip pickup dates.
