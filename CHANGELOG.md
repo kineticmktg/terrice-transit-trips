@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.0 - 2026-07-25
+
+- Added Route Coverage-backed driver conflict checks, confirmation gating, and trip-created route vacancy handoff.
+- Added driver-grouped route conflict popups and green route conflict status messaging on Trip edit screens.
+
 ## 0.1.36 - 2026-07-25
 
 - Added published-trip Actuals rows under each bus assignment for yard, departure, arrival, return, post-trip times, and mileage capture.
