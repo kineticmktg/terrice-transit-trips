@@ -795,7 +795,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         $one_way_seconds = (float) rtrim((string) $route['duration'], 's');
 
         return array(
-            'miles'   => round(($one_way_meters / 1609.344) * 2, 1),
+            'miles'   => (int) ceil(($one_way_meters / 1609.344) * 2),
             'minutes' => (int) round(($one_way_seconds / 60) * (1 + ($buffer / 100))),
         );
     }

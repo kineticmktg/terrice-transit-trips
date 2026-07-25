@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.20 - 2026-07-25
+
+- Rounded Google estimated round-trip mileage up to a whole mile while keeping the configured buffer limited to travel-time estimates.
+
 ## 0.1.19 - 2026-07-25
 
 - Added Location Name lookup with selectable place suggestions that fill destination address.
