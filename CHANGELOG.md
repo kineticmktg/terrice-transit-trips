@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.18 - 2026-07-25
+
+- Limited Trip driver assignment dropdowns to drivers with Evening availability or extra-run availability for the selected trip dates.
+
 ## 0.2.17 - 2026-07-25
 
 - Linked driver trip assignment notifications to the matching My Dashboard trip row with automatic section opening, scrolling, and pulse highlighting.
