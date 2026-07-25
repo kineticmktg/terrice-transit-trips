@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.3 - 2026-07-25
+
+- Persisted confirmed driver route conflicts so unchanged conflicts do not prompt again.
+- Added per-driver assignment status text, including Vacant for unassigned driver slots.
+
 ## 0.2.2 - 2026-07-25
 
 - Grouped Actuals time and mileage fields into stacked pairs that flow inline and wrap on smaller screens.
