@@ -885,9 +885,13 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
     }
 
     private function render_text_field($name, $label, $value, $type = 'text') {
+        $is_phone_field = 'tel' === $type;
+        $class = $is_phone_field ? 'terricel-phone-field' : '';
+        $extra = $is_phone_field ? ' inputmode="numeric" autocomplete="tel" maxlength="14"' : '';
+
         echo '<p>';
         echo '<label for="' . esc_attr($name) . '"><strong>' . esc_html($label) . '</strong></label><br>';
-        echo '<input type="' . esc_attr($type) . '" id="' . esc_attr($name) . '" name="' . esc_attr($name) . '" value="' . esc_attr($value) . '">';
+        echo '<input class="' . esc_attr($class) . '" type="' . esc_attr($type) . '" id="' . esc_attr($name) . '" name="' . esc_attr($name) . '" value="' . esc_attr($value) . '"' . $extra . '>';
         echo '</p>';
     }
 
@@ -1110,14 +1114,20 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
     }
 
     private function sanitize_phone($value) {
-        $value = sanitize_text_field(wp_unslash($value));
-        $value = trim(preg_replace('/[^0-9()+.\-\s]/', '', $value));
+        if (class_exists('Terricel_Logistics_Shared_Data') && method_exists('Terricel_Logistics_Shared_Data', 'sanitize_phone_number')) {
+            return Terricel_Logistics_Shared_Data::sanitize_phone_number($value);
+        }
 
-        return preg_replace('/\s+/', ' ', $value);
+        $digits = preg_replace('/\D+/', '', (string) wp_unslash($value));
+        return substr($digits, 0, 10);
     }
 
     private function get_phone_href($phone) {
-        return preg_replace('/[^0-9+]/', '', (string) $phone);
+        if (class_exists('Terricel_Logistics_Shared_Data') && method_exists('Terricel_Logistics_Shared_Data', 'phone_href')) {
+            return Terricel_Logistics_Shared_Data::phone_href($phone);
+        }
+
+        return preg_replace('/\D+/', '', (string) $phone);
     }
 
     private function sanitize_decimal($value) {

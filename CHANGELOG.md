@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.7 - 2026-07-24
+
+- Updated school trip group advisor phone fields to use the core Terricel phone formatter.
+- Added core phone input masking support to advisor phone fields.
+
 ## 0.1.6 - 2026-07-24
 
 - Improved the School Trip Group edit screen with a structured group details panel.
