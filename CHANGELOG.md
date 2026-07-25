@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.12 - 2026-07-25
+
+- Changed the Trips Smart Monitor to use forward rolling Sunday-Saturday columns while always showing weekend columns.
+
 ## 0.2.11 - 2026-07-25
 
 - Injected a Trips Smart Monitor dashboard, page shortcode registration, Sunday-Saturday trip monitor data, and a monitor renderer that matches the dispatch board layout.

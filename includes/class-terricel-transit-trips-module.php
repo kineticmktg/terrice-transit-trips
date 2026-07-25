@@ -536,19 +536,16 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
 
     public function get_kiosk_trip_monitor_data() {
         $today = current_time('Y-m-d');
-        $today_timestamp = strtotime($today);
-        $week_start_timestamp = strtotime('-' . (int) date('w', $today_timestamp) . ' days', $today_timestamp);
-        $week_end_timestamp = strtotime('+6 days', $week_start_timestamp);
-        $week_start = date('Y-m-d', $week_start_timestamp);
-        $week_end = date('Y-m-d', $week_end_timestamp);
+        $dates = $this->get_kiosk_trip_monitor_dates($today);
+        $query_start = min($dates);
+        $query_end = max($dates);
         $days = array();
         $trips_by_date = array();
         $total_trips = 0;
         $total_vacant_assignments = 0;
 
-        for ($offset = 0; $offset < 7; $offset++) {
-            $timestamp = strtotime('+' . $offset . ' days', $week_start_timestamp);
-            $date = date('Y-m-d', $timestamp);
+        foreach ($dates as $date) {
+            $timestamp = strtotime($date);
             $trips_by_date[$date] = array();
             $days[$date] = array(
                 'date'       => $date,
@@ -560,7 +557,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             );
         }
 
-        foreach ($this->get_trip_report_trips($week_start, $week_end) as $trip) {
+        foreach ($this->get_trip_report_trips($query_start, $query_end) as $trip) {
             $trip_id = absint($trip->ID);
             $date = get_post_meta($trip_id, '_terricel_trip_pickup_date', true);
             if (!isset($trips_by_date[$date])) {
@@ -586,12 +583,31 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
 
         return array(
             'view'                     => 'week',
-            'week_start'               => $week_start,
-            'week_end'                 => $week_end,
+            'week_start'               => $query_start,
+            'week_end'                 => $query_end,
             'days'                     => array_values($days),
             'total_trips'              => $total_trips,
             'total_vacant_assignments' => $total_vacant_assignments,
         );
+    }
+
+    private function get_kiosk_trip_monitor_dates($today) {
+        $dates = array();
+        $today_timestamp = strtotime($today);
+        $today_timestamp = $today_timestamp ? $today_timestamp : current_time('timestamp');
+        $current_day_number = (int) date('w', $today_timestamp);
+
+        for ($day_number = 0; $day_number <= 6; $day_number++) {
+            $offset = $day_number - $current_day_number;
+            if ($offset < 0) {
+                $offset += 7;
+            }
+
+            $timestamp = strtotime('+' . $offset . ' days', $today_timestamp);
+            $dates[] = $timestamp ? date('Y-m-d', $timestamp) : current_time('Y-m-d');
+        }
+
+        return $dates;
     }
 
     public function render_report_filters($selected_type, $report_query) {
