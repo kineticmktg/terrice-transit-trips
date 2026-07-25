@@ -152,13 +152,23 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         $return_date = get_post_meta($post->ID, '_terricel_trip_return_date', true);
         $return_time = get_post_meta($post->ID, '_terricel_trip_return_time', true);
 
-        echo '<div class="terricel-trip-grid">';
+        echo '<div class="terricel-trip-details-layout">';
+        echo '<div class="terricel-trip-school-row">';
+        echo '<div class="terricel-trip-school-field">';
         $this->render_post_select_field('terricel_trip_school_id', __('School', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), Terricel_Logistics_Shared_Data::SCHOOL_POST_TYPE, $school_id, __('Select school', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN));
+        echo '</div>';
+        echo '<div class="terricel-trip-school-field">';
         $this->render_group_select_field($school_id, $group_id);
+        echo '</div>';
+        echo '<div class="terricel-trip-group-action"><button type="button" class="button" id="terricel_trip_add_group_toggle">' . esc_html__('Add School Group', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</button></div>';
+        echo '</div>';
+        $this->render_inline_group_create_panel();
+        echo '<div class="terricel-trip-schedule-grid">';
         $this->render_date_time_field('pickup', __('Pickup', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $pickup_date, $pickup_time);
         $this->render_date_time_field('arrival', __('Arrival', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $arrival_date ? $arrival_date : $pickup_date, $arrival_time);
         $this->render_date_time_field('departure', __('Departure', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $departure_date ? $departure_date : $pickup_date, $departure_time);
         $this->render_date_time_field('return', __('Return', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $return_date ? $return_date : $pickup_date, $return_time);
+        echo '</div>';
         echo '</div>';
     }
 
@@ -770,7 +780,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
 
         wp_register_style('terricel-transit-trips-admin', false, array(), TERRICEL_TRANSIT_TRIPS_VERSION);
         wp_enqueue_style('terricel-transit-trips-admin');
-        wp_add_inline_style('terricel-transit-trips-admin', '.terricel-trip-grid,.terricel-group-details-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 16px}.terricel-trip-grid p,.terricel-group-details-grid p{margin-top:0}.terricel-trip-assignments select,.terricel-group-details-grid select,.terricel-group-details-grid input{max-width:100%;width:100%}.terricel-group-contact-links{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 0}.terricel-group-contact-links a{text-decoration:none}.terricel-group-contact-links .dashicons{vertical-align:text-bottom}.terricel-trips-back-link{margin:0 0 12px}.terricel-inline-group-panel{border:1px solid #dcdcde;background:#fff;padding:12px;margin:8px 0 0}.terricel-inline-group-actions{margin-bottom:0}.terricel-trip-panel-locked .inside{opacity:.45;pointer-events:none}.terricel-trip-panel-locked:after{content:"Select a school and school group to continue.";display:block;margin:0 12px 12px;color:#646970;font-style:italic}');
+        wp_add_inline_style('terricel-transit-trips-admin', '.terricel-trip-grid,.terricel-group-details-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 16px}.terricel-trip-grid p,.terricel-group-details-grid p{margin-top:0}.terricel-trip-details-layout{display:grid;gap:18px}.terricel-trip-school-row{display:grid;grid-template-columns:minmax(240px,1fr) minmax(260px,1fr) auto;gap:14px;align-items:end;max-width:980px}.terricel-trip-school-field p{margin:0}.terricel-trip-school-field select{min-height:40px}.terricel-trip-group-action .button{min-height:40px;padding:4px 18px}.terricel-trip-schedule-grid{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:14px;max-width:1060px}.terricel-trip-time-card{border:1px solid #dcdcde;background:#fdfdfd;padding:12px;display:grid;gap:10px}.terricel-trip-time-card strong{font-size:13px}.terricel-trip-time-card label{display:grid;gap:4px;margin:0}.terricel-trip-time-card span{font-size:12px;color:#646970}.terricel-trip-time-card input{width:100%;max-width:100%;min-height:36px}.terricel-trip-assignments select,.terricel-group-details-grid select,.terricel-group-details-grid input{max-width:100%;width:100%}.terricel-required{color:#b32d2e}.terricel-group-contact-links{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 0}.terricel-group-contact-links a{text-decoration:none}.terricel-group-contact-links .dashicons{vertical-align:text-bottom}.terricel-trips-back-link{margin:0 0 12px}.terricel-inline-group-panel{border:1px solid #dcdcde;background:#fff;padding:14px;margin:0;max-width:980px}.terricel-inline-group-panel-header{display:flex;align-items:baseline;gap:10px;margin:0 0 12px}.terricel-inline-group-panel-header span{color:#646970}.terricel-inline-group-actions{margin:14px 0 0;display:flex;gap:8px;align-items:center}.terricel-trip-panel-locked .inside{opacity:.45;pointer-events:none}.terricel-trip-panel-locked:after{content:"Select a school and school group to continue.";display:block;margin:0 12px 12px;color:#646970;font-style:italic}@media (max-width:1100px){.terricel-trip-school-row{grid-template-columns:1fr 1fr}.terricel-trip-group-action{grid-column:1 / -1}.terricel-trip-schedule-grid{grid-template-columns:repeat(2,minmax(180px,1fr))}}@media (max-width:782px){.terricel-trip-school-row,.terricel-trip-schedule-grid{grid-template-columns:1fr}.terricel-inline-group-panel-header,.terricel-inline-group-actions{align-items:stretch;flex-direction:column}.terricel-trip-group-action .button{width:100%;text-align:center}}');
 
         if (self::TRIP_POST_TYPE !== $screen->post_type) {
             return;
@@ -794,6 +804,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
                 'saved'             => __('School group added and selected.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
                 'selectSchool'      => __('Select a school before adding a group.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
                 'enterGroupName'    => __('Enter a group name.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+                'requiredGroup'     => __('Enter the group name and advisor first and last name.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
                 'error'             => __('Unable to complete the request.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
             ),
         );
@@ -812,7 +823,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             'school.addEventListener("change",function(){if(panel){panel.hidden=true;}loadGroups();});group.addEventListener("change",syncLocks);' .
             'if(toggle&&panel){toggle.addEventListener("click",function(){if(parseInt(school.value,10)<1){setMessage(config.strings.selectSchool,true);return;}panel.hidden=!panel.hidden;if(!panel.hidden){var name=document.getElementById("terricel_trip_new_group_name");if(name){name.focus();}}});}' .
             'if(cancel&&panel){cancel.addEventListener("click",function(){panel.hidden=true;setMessage("");});}' .
-            'if(save){save.addEventListener("click",function(){var name=document.getElementById("terricel_trip_new_group_name");if(!name||!name.value.trim()){setMessage(config.strings.enterGroupName,true);if(name){name.focus();}return;}if(parseInt(school.value,10)<1){setMessage(config.strings.selectSchool,true);return;}save.disabled=true;setMessage(config.strings.saving,false);post("terricel_create_trip_group",{school_id:school.value,group_name:name.value,advisor_first_name:(document.getElementById("terricel_trip_new_group_advisor_first_name")||{}).value||"",advisor_last_name:(document.getElementById("terricel_trip_new_group_advisor_last_name")||{}).value||"",advisor_main_phone:(document.getElementById("terricel_trip_new_group_advisor_main_phone")||{}).value||"",advisor_main_phone_extension:(document.getElementById("terricel_trip_new_group_advisor_main_phone_extension")||{}).value||"",advisor_emergency_phone:(document.getElementById("terricel_trip_new_group_advisor_emergency_phone")||{}).value||"",advisor_email:(document.getElementById("terricel_trip_new_group_advisor_email")||{}).value||""}).then(function(data){if(data.group){var row=option(data.group.id,data.group.label);row.selected=true;group.appendChild(row);group.value=String(data.group.id);}clearPanel();if(panel){panel.hidden=true;}setMessage(config.strings.saved,false);syncLocks();}).catch(function(error){setMessage(error.message,true);}).finally(function(){save.disabled=false;});});}' .
+            'if(save){save.addEventListener("click",function(){var name=document.getElementById("terricel_trip_new_group_name");var first=document.getElementById("terricel_trip_new_group_advisor_first_name");var last=document.getElementById("terricel_trip_new_group_advisor_last_name");var required=[name,first,last];var missing=required.find(function(input){return !input||!input.value.trim();});if(missing){setMessage(config.strings.requiredGroup,true);missing.focus();return;}if(parseInt(school.value,10)<1){setMessage(config.strings.selectSchool,true);return;}save.disabled=true;setMessage(config.strings.saving,false);post("terricel_create_trip_group",{school_id:school.value,group_name:name.value,advisor_first_name:first.value,advisor_last_name:last.value,advisor_main_phone:(document.getElementById("terricel_trip_new_group_advisor_main_phone")||{}).value||"",advisor_main_phone_extension:(document.getElementById("terricel_trip_new_group_advisor_main_phone_extension")||{}).value||"",advisor_emergency_phone:(document.getElementById("terricel_trip_new_group_advisor_emergency_phone")||{}).value||"",advisor_email:(document.getElementById("terricel_trip_new_group_advisor_email")||{}).value||""}).then(function(data){if(data.group){var row=option(data.group.id,data.group.label);row.selected=true;group.appendChild(row);group.value=String(data.group.id);}clearPanel();if(panel){panel.hidden=true;}setMessage(config.strings.saved,false);syncLocks();}).catch(function(error){setMessage(error.message,true);}).finally(function(){save.disabled=false;});});}' .
             'syncLocks();' .
             '});' .
             '}(' . wp_json_encode($config) . '));';
@@ -966,16 +977,19 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         echo '</select></p>';
     }
 
-    private function render_text_field($name, $label, $value, $type = 'text', $inputmode = '') {
+    private function render_text_field($name, $label, $value, $type = 'text', $inputmode = '', $required = false) {
         $is_phone_field = 'tel' === $type;
         $class = $is_phone_field ? 'terricel-phone-field' : '';
         $extra = $is_phone_field ? ' inputmode="numeric" autocomplete="tel" maxlength="14"' : '';
         if (!$is_phone_field && $inputmode) {
             $extra .= ' inputmode="' . esc_attr($inputmode) . '"';
         }
+        if ($required) {
+            $extra .= ' required';
+        }
 
         echo '<p>';
-        echo '<label for="' . esc_attr($name) . '"><strong>' . esc_html($label) . '</strong></label><br>';
+        echo '<label for="' . esc_attr($name) . '"><strong>' . esc_html($label) . ($required ? ' <span class="terricel-required">*</span>' : '') . '</strong></label><br>';
         echo '<input class="' . esc_attr($class) . '" type="' . esc_attr($type) . '" id="' . esc_attr($name) . '" name="' . esc_attr($name) . '" value="' . esc_attr($value) . '"' . $extra . '>';
         echo '</p>';
     }
@@ -988,13 +1002,19 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             echo '<option value="' . esc_attr($group->ID) . '"' . selected($selected, $group->ID, false) . '>' . esc_html($this->get_group_select_label($group->ID)) . '</option>';
         }
         echo '</select></p>';
+    }
+
+    private function render_inline_group_create_panel() {
         echo '<div class="terricel-inline-group-create">';
-        echo '<p><button type="button" class="button" id="terricel_trip_add_group_toggle">' . esc_html__('Add School Group', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</button></p>';
         echo '<div id="terricel_trip_add_group_panel" class="terricel-inline-group-panel" hidden>';
+        echo '<div class="terricel-inline-group-panel-header">';
+        echo '<strong>' . esc_html__('Add School Group', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</strong>';
+        echo '<span>' . esc_html__('Create it here and keep building this trip.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</span>';
+        echo '</div>';
         echo '<div class="terricel-group-details-grid">';
-        $this->render_text_field('terricel_trip_new_group_name', __('Group Name', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '', 'text');
-        $this->render_text_field('terricel_trip_new_group_advisor_first_name', __('Advisor First Name', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '', 'text');
-        $this->render_text_field('terricel_trip_new_group_advisor_last_name', __('Advisor Last Name', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '', 'text');
+        $this->render_text_field('terricel_trip_new_group_name', __('Group Name', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '', 'text', '', true);
+        $this->render_text_field('terricel_trip_new_group_advisor_first_name', __('Advisor First Name', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '', 'text', '', true);
+        $this->render_text_field('terricel_trip_new_group_advisor_last_name', __('Advisor Last Name', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '', 'text', '', true);
         $this->render_text_field('terricel_trip_new_group_advisor_main_phone', __('Main Phone', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '', 'tel');
         $this->render_text_field('terricel_trip_new_group_advisor_main_phone_extension', __('Extension', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '', 'text', 'numeric');
         $this->render_text_field('terricel_trip_new_group_advisor_emergency_phone', __('Emergency Phone', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '', 'tel');
@@ -1005,9 +1025,11 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
     }
 
     private function render_date_time_field($key, $label, $date, $time) {
-        echo '<p><strong>' . esc_html($label) . '</strong><br>';
-        echo '<input type="date" name="terricel_trip_' . esc_attr($key) . '_date" value="' . esc_attr($date) . '"> ';
-        echo '<input type="time" name="terricel_trip_' . esc_attr($key) . '_time" value="' . esc_attr($time) . '"></p>';
+        echo '<div class="terricel-trip-time-card">';
+        echo '<strong>' . esc_html($label) . '</strong>';
+        echo '<label><span>' . esc_html__('Date', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</span><input type="date" name="terricel_trip_' . esc_attr($key) . '_date" value="' . esc_attr($date) . '"></label>';
+        echo '<label><span>' . esc_html__('Time', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</span><input type="time" name="terricel_trip_' . esc_attr($key) . '_time" value="' . esc_attr($time) . '"></label>';
+        echo '</div>';
     }
 
     private function get_bus_select($name, $selected, $trip_id) {
@@ -1162,11 +1184,13 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         check_ajax_referer('terricel_trip_group_ajax', 'nonce');
         $school_id = absint($_POST['school_id'] ?? 0);
         $group_name = sanitize_text_field(wp_unslash($_POST['group_name'] ?? ''));
+        $advisor_first_name = $this->sanitize_person_name($_POST['advisor_first_name'] ?? '');
+        $advisor_last_name = $this->sanitize_person_name($_POST['advisor_last_name'] ?? '');
         if ($school_id < 1 || 'publish' !== get_post_status($school_id)) {
             wp_send_json_error(array('message' => __('Select a school before adding a group.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)), 400);
         }
-        if ('' === $group_name) {
-            wp_send_json_error(array('message' => __('Enter a group name.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)), 400);
+        if ('' === $group_name || '' === $advisor_first_name || '' === $advisor_last_name) {
+            wp_send_json_error(array('message' => __('Enter the group name and advisor first and last name.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)), 400);
         }
 
         $group_id = wp_insert_post(
@@ -1182,8 +1206,8 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         }
 
         update_post_meta($group_id, '_terricel_trip_group_school_id', $school_id);
-        update_post_meta($group_id, '_terricel_trip_group_advisor_first_name', $this->sanitize_person_name($_POST['advisor_first_name'] ?? ''));
-        update_post_meta($group_id, '_terricel_trip_group_advisor_last_name', $this->sanitize_person_name($_POST['advisor_last_name'] ?? ''));
+        update_post_meta($group_id, '_terricel_trip_group_advisor_first_name', $advisor_first_name);
+        update_post_meta($group_id, '_terricel_trip_group_advisor_last_name', $advisor_last_name);
         update_post_meta($group_id, '_terricel_trip_group_advisor_main_phone', $this->sanitize_phone($_POST['advisor_main_phone'] ?? ''));
         update_post_meta($group_id, '_terricel_trip_group_advisor_main_phone_extension', $this->sanitize_extension($_POST['advisor_main_phone_extension'] ?? ''));
         update_post_meta($group_id, '_terricel_trip_group_advisor_emergency_phone', $this->sanitize_phone($_POST['advisor_emergency_phone'] ?? ''));

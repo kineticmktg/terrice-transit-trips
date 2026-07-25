@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.12 - 2026-07-24
+
+- Improved the Trip Details layout so school/group selection, inline group creation, and schedule fields are visually grouped and responsive.
+- Required inline School Trip Group creation to include group name and advisor first and last names.
+
 ## 0.1.11 - 2026-07-24
 
 - Filtered Trip school groups to the selected school and added advisor names to group dropdown labels.
