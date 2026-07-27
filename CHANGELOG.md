@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.21 - 2026-07-27
+
+- Replaced Google Maps setup instructions in Settings > Integrations with a direct Google Cloud console link.
+
 ## 0.2.20 - 2026-07-27
 
 - Adopted the parent dynamic admin back button helper for trip and school trip group pages.
