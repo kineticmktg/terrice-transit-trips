@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.22 - 2026-07-27
+
+- Preserved customized Trip Coordinator role permissions from the parent Roles settings screen instead of removing Operations Dashboard and Manage Operations on every load.
+
 ## 0.2.21 - 2026-07-27
 
 - Replaced Google Maps setup instructions in Settings > Integrations with a direct Google Cloud console link.
