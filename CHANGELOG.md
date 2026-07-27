@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.19 - 2026-07-27
+
+- Removed broad Operations Dashboard and Manage Operations defaults from the Trip Coordinator role so trips access is controlled independently.
+
 ## 0.2.18 - 2026-07-25
 
 - Limited Trip driver assignment dropdowns to drivers with Evening availability or extra-run availability for the selected trip dates.

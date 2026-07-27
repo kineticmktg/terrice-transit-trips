@@ -108,7 +108,6 @@ class Terricel_Transit_Trips_Plugin {
                 'read'                    => true,
                 'level_0'                 => true,
                 'terricel_access_transit' => true,
-                'terricel_manage_operations' => true,
                 self::CAP_MANAGE_TRIPS    => true,
                 'terricel_view_monitor'   => true,
             )
@@ -119,6 +118,8 @@ class Terricel_Transit_Trips_Plugin {
             foreach (self::trip_coordinator_capabilities() as $capability) {
                 $role->add_cap($capability);
             }
+            $role->remove_cap('terricel_manage_operations');
+            $role->remove_cap('terricel_view_operations_dashboard');
         }
 
         foreach (array('administrator', 'terricel_dispatcher', 'terricel_admin') as $role_key) {
@@ -139,7 +140,6 @@ class Terricel_Transit_Trips_Plugin {
             'read',
             'level_0',
             'terricel_access_transit',
-            'terricel_manage_operations',
             self::CAP_MANAGE_TRIPS,
             'terricel_view_monitor',
             'edit_posts',
