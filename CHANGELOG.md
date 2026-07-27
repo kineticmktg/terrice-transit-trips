@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.23 - 2026-07-27
+
+- Added an Add Any Driver toggle to trip assignment driver selectors so trip coordinators can reveal drivers outside normal trip-date availability while preserving route-conflict confirmation.
+
 ## 0.2.22 - 2026-07-27
 
 - Preserved customized Trip Coordinator role permissions from the parent Roles settings screen instead of removing Operations Dashboard and Manage Operations on every load.
