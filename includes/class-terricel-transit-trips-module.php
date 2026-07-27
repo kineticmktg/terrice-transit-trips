@@ -1948,7 +1948,13 @@ JS;
             $label = __('< Back to School Trip Groups', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN);
         }
 
-        echo '<p class="terricel-trips-back-link"><a class="button" href="' . esc_url($url) . '">' . esc_html($label) . '</a></p>';
+        echo '<p class="terricel-trips-back-link">';
+        if (function_exists('terricel_logistics_render_dynamic_admin_back_button')) {
+            terricel_logistics_render_dynamic_admin_back_button($url, $label);
+        } else {
+            echo '<a class="button" href="' . esc_url($url) . '">' . esc_html($label) . '</a>';
+        }
+        echo '</p>';
     }
 
     public function render_trip_list_header_actions_script() {
@@ -1957,7 +1963,9 @@ JS;
             return;
         }
 
-        $trips_url = admin_url('edit.php?post_type=' . self::TRIP_POST_TYPE);
+        $trips_url = function_exists('terricel_logistics_get_dynamic_admin_back_url')
+            ? terricel_logistics_get_dynamic_admin_back_url(admin_url('edit.php?post_type=' . self::TRIP_POST_TYPE))
+            : admin_url('edit.php?post_type=' . self::TRIP_POST_TYPE);
         $groups_url = admin_url('edit.php?post_type=' . self::GROUP_POST_TYPE);
         echo '<script>';
         echo '(function(){document.addEventListener("DOMContentLoaded",function(){var addButton=document.querySelector(".wrap .page-title-action");if(!addButton){return;}';

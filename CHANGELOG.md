@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.20 - 2026-07-27
+
+- Adopted the parent dynamic admin back button helper for trip and school trip group pages.
+
 ## 0.2.19 - 2026-07-27
 
 - Removed broad Operations Dashboard and Manage Operations defaults from the Trip Coordinator role so trips access is controlled independently.
