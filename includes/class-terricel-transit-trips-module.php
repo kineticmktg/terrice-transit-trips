@@ -13,7 +13,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
 
     const TRIP_POST_TYPE = 'terricel_trip';
     const GROUP_POST_TYPE = 'terricel_trip_group';
-    const ORGANIZATION_POST_TYPE = 'terricel_trip_organization';
+    const ORGANIZATION_POST_TYPE = 'terricel_trip_org';
     const MODULE_ID = 'trips';
 
     private $plugin;

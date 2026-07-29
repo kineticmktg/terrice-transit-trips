@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.26 - 2026-07-29
+
+- Fixed the Organizations admin page by shortening the internal Organization post type key to stay within WordPress post type limits.
+
 ## 0.2.25 - 2026-07-29
 
 - Added Trips Organizations for non-school billing entities, quick Organization creation on Trip edit screens, and Manage Organizations access from the Trips list.
