@@ -124,7 +124,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             'terricel-transit',
             __('Trip Billing', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
             __('Billing', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
-            Terricel_Transit_Trips_Plugin::CAP_MANAGE_TRIPS,
+            Terricel_Transit_Trips_Plugin::CAP_VIEW_BILLING,
             'terricel-transit-trip-billing',
             array($this, 'render_billing_page')
         );
@@ -723,7 +723,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
     }
 
     public function render_billing_page() {
-        if (!current_user_can(Terricel_Transit_Trips_Plugin::CAP_MANAGE_TRIPS)) {
+        if (!current_user_can(Terricel_Transit_Trips_Plugin::CAP_VIEW_BILLING)) {
             wp_die(esc_html__('You do not have permission to manage trip billing.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN));
         }
 
@@ -789,14 +789,20 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             echo '<td>' . wp_kses_post($this->get_invoice_download_link($trip_id)) . '</td>';
             echo '<td class="terricel-billing-actions">';
             if ($totals['missing_mileage']) {
-                echo '<a class="button button-primary terricel-button-danger" href="' . esc_url($this->get_trip_actuals_update_url($trip_id)) . '">' . esc_html__('Update Mileage', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</a>';
-                if ('voided' !== $this->get_trip_invoice_status($trip_id)) {
+                if (current_user_can(Terricel_Transit_Trips_Plugin::CAP_EDIT_BILLING)) {
+                    echo '<a class="button button-primary terricel-button-danger" href="' . esc_url($this->get_trip_actuals_update_url($trip_id)) . '">' . esc_html__('Update Mileage', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</a>';
+                }
+                if ('voided' !== $this->get_trip_invoice_status($trip_id) && current_user_can(Terricel_Transit_Trips_Plugin::CAP_EDIT_BILLING)) {
                     echo $this->get_invoice_void_form($trip_id);
                 }
             } else {
-                echo $this->get_invoice_view_form($trip_id);
-                echo $this->get_invoice_email_form($trip_id);
-                if ('voided' !== $this->get_trip_invoice_status($trip_id)) {
+                if (current_user_can(Terricel_Transit_Trips_Plugin::CAP_VIEW_BILLING)) {
+                    echo $this->get_invoice_view_form($trip_id);
+                }
+                if (current_user_can(Terricel_Transit_Trips_Plugin::CAP_SEND_INVOICES)) {
+                    echo $this->get_invoice_email_form($trip_id);
+                }
+                if ('voided' !== $this->get_trip_invoice_status($trip_id) && current_user_can(Terricel_Transit_Trips_Plugin::CAP_EDIT_BILLING)) {
                     echo $this->get_invoice_void_form($trip_id);
                 }
             }
@@ -809,7 +815,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
     }
 
     public function handle_view_invoice() {
-        if (!current_user_can(Terricel_Transit_Trips_Plugin::CAP_MANAGE_TRIPS)) {
+        if (!current_user_can(Terricel_Transit_Trips_Plugin::CAP_VIEW_BILLING)) {
             wp_die(esc_html__('You do not have permission to view invoices.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN));
         }
 
@@ -840,7 +846,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
     }
 
     public function handle_send_invoice() {
-        if (!current_user_can(Terricel_Transit_Trips_Plugin::CAP_MANAGE_TRIPS)) {
+        if (!current_user_can(Terricel_Transit_Trips_Plugin::CAP_SEND_INVOICES)) {
             wp_die(esc_html__('You do not have permission to send invoices.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN));
         }
 
@@ -898,7 +904,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
     }
 
     public function handle_void_invoice() {
-        if (!current_user_can(Terricel_Transit_Trips_Plugin::CAP_MANAGE_TRIPS)) {
+        if (!current_user_can(Terricel_Transit_Trips_Plugin::CAP_EDIT_BILLING)) {
             wp_die(esc_html__('You do not have permission to void invoices.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN));
         }
 

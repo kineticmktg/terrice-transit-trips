@@ -13,6 +13,9 @@ class Terricel_Transit_Trips_Plugin {
 
     const ROLE_TRIP_COORDINATOR = 'trip_coordinator';
     const CAP_MANAGE_TRIPS = 'terricel_manage_trips';
+    const CAP_VIEW_BILLING = 'terricel_view_trip_billing';
+    const CAP_EDIT_BILLING = 'terricel_edit_trip_billing';
+    const CAP_SEND_INVOICES = 'terricel_send_trip_invoices';
     const OPTION_GOOGLE_API_KEY = 'terricel_trips_google_api_key';
     const OPTION_GOOGLE_RESTRICTED_IP = 'terricel_trips_google_restricted_ip';
     const OPTION_TRAVEL_BUFFER_PERCENT = 'terricel_trips_travel_buffer_percent';
@@ -149,6 +152,9 @@ class Terricel_Transit_Trips_Plugin {
                 'level_0'                 => true,
                 'terricel_access_transit' => true,
                 self::CAP_MANAGE_TRIPS    => true,
+                self::CAP_VIEW_BILLING    => true,
+                self::CAP_EDIT_BILLING    => true,
+                self::CAP_SEND_INVOICES   => true,
                 'terricel_view_monitor'   => true,
             )
         );
@@ -168,14 +174,27 @@ class Terricel_Transit_Trips_Plugin {
         foreach (array('administrator', 'terricel_dispatcher', 'terricel_admin') as $role_key) {
             $role = get_role($role_key);
             if ($role) {
-                $role->add_cap(self::CAP_MANAGE_TRIPS);
+                foreach (self::billing_capabilities() as $capability) {
+                    $role->add_cap($capability);
+                }
             }
         }
 
         $driver = get_role('terricel_driver');
         if ($driver) {
-            $driver->remove_cap(self::CAP_MANAGE_TRIPS);
+            foreach (self::billing_capabilities() as $capability) {
+                $driver->remove_cap($capability);
+            }
         }
+    }
+
+    public static function billing_capabilities() {
+        return array(
+            self::CAP_MANAGE_TRIPS,
+            self::CAP_VIEW_BILLING,
+            self::CAP_EDIT_BILLING,
+            self::CAP_SEND_INVOICES,
+        );
     }
 
     public static function trip_coordinator_capabilities() {
@@ -184,6 +203,9 @@ class Terricel_Transit_Trips_Plugin {
             'level_0',
             'terricel_access_transit',
             self::CAP_MANAGE_TRIPS,
+            self::CAP_VIEW_BILLING,
+            self::CAP_EDIT_BILLING,
+            self::CAP_SEND_INVOICES,
             'terricel_view_monitor',
             'edit_posts',
             'edit_others_posts',
@@ -196,7 +218,7 @@ class Terricel_Transit_Trips_Plugin {
     }
 
     public function filter_capabilities($capabilities) {
-        $capabilities[] = self::CAP_MANAGE_TRIPS;
+        $capabilities = array_merge($capabilities, self::billing_capabilities());
         return array_values(array_unique($capabilities));
     }
 
@@ -208,12 +230,12 @@ class Terricel_Transit_Trips_Plugin {
                 continue;
             }
 
-            $role_capabilities[$role_key][] = self::CAP_MANAGE_TRIPS;
+            $role_capabilities[$role_key] = array_merge($role_capabilities[$role_key], self::billing_capabilities());
             $role_capabilities[$role_key] = array_values(array_unique($role_capabilities[$role_key]));
         }
 
         if (isset($role_capabilities['terricel_driver'])) {
-            $role_capabilities['terricel_driver'] = array_values(array_diff($role_capabilities['terricel_driver'], array(self::CAP_MANAGE_TRIPS)));
+            $role_capabilities['terricel_driver'] = array_values(array_diff($role_capabilities['terricel_driver'], self::billing_capabilities()));
         }
 
         return $role_capabilities;

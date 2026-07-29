@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.11 - 2026-07-29
+
+- Added trip billing capabilities for viewing billing, editing billing, and sending invoices, with defaults for Trip Coordinator, Dispatcher, and Admin roles.
+- Restricted Trip Billing page actions to the matching billing capabilities.
+
 ## 0.3.10 - 2026-07-29
 
 - Right-aligned the Number of Buses Needed, Leave School, and Time Returning values in the field trip request PDF.
