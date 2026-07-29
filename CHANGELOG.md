@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 - 2026-07-29
+
+- Fixed Trip edit updates being blocked by required fields inside hidden inline Add Group and Add Organization panels.
+
 ## 0.3.0 - 2026-07-29
 
 - Moved Organizations access out of the Operations Dashboard submenu and into the parent Configuration page.
