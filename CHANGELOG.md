@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.6 - 2026-07-29
+
+- Added an on-demand Trip Sheet download column to the Trips list with one PDF page per bus needed, prefilled from trip, assignment, group contact, and actuals data.
+
 ## 0.3.5 - 2026-07-29
 
 - Added automatic stored invoice PDF generation for completed mileage-ready trips and automatic replacement/versioning when completed trips are edited.

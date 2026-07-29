@@ -85,6 +85,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             add_action('wp_ajax_terricel_trip_driver_conflicts', array($this, 'ajax_trip_driver_conflicts'));
             add_action('wp_ajax_terricel_trip_bus_availability', array($this, 'ajax_trip_bus_availability'));
             add_action('wp_ajax_terricel_create_trip_organization', array($this, 'ajax_create_trip_organization'));
+            add_action('admin_post_terricel_trips_download_trip_sheet', array($this, 'handle_download_trip_sheet'));
             add_action('admin_post_terricel_trips_view_invoice', array($this, 'handle_view_invoice'));
             add_action('admin_post_terricel_trips_send_invoice', array($this, 'handle_send_invoice'));
             add_action('admin_post_terricel_trips_void_invoice', array($this, 'handle_void_invoice'));
@@ -901,6 +902,31 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         exit;
     }
 
+    public function handle_download_trip_sheet() {
+        if (!current_user_can(Terricel_Transit_Trips_Plugin::CAP_MANAGE_TRIPS)) {
+            wp_die(esc_html__('You do not have permission to download trip sheets.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN));
+        }
+
+        $trip_id = absint($_GET['trip_id'] ?? 0);
+        check_admin_referer('terricel_trips_download_trip_sheet_' . $trip_id);
+
+        if ($trip_id < 1 || self::TRIP_POST_TYPE !== get_post_type($trip_id)) {
+            wp_die(esc_html__('Trip not found.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN));
+        }
+
+        $pdf = $this->build_trip_sheet_pdf($trip_id);
+        if ('' === $pdf) {
+            wp_die(esc_html__('The trip sheet PDF could not be generated.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN));
+        }
+
+        nocache_headers();
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="' . sanitize_file_name('trip-sheet-' . $trip_id . '.pdf') . '"');
+        header('Content-Length: ' . strlen($pdf));
+        echo $pdf;
+        exit;
+    }
+
     public function prevent_deleting_records_with_past_trips($post_id) {
         $post_type = get_post_type($post_id);
         if (!in_array($post_type, array(self::GROUP_POST_TYPE, self::ORGANIZATION_POST_TYPE, Terricel_Logistics_Shared_Data::SCHOOL_POST_TYPE), true)) {
@@ -1415,6 +1441,222 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         $pdf .= "trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n" . $xref_offset . "\n%%EOF";
 
         return $pdf;
+    }
+
+    private function build_trip_sheet_pdf($trip_id) {
+        $assignments = $this->get_trip_assignments($trip_id);
+        $actuals = $this->get_trip_actuals($trip_id);
+        $buses_needed = absint(get_post_meta($trip_id, '_terricel_trip_buses_needed', true));
+        $page_count = max(1, $buses_needed, count($assignments));
+        $pages = array();
+
+        for ($index = 0; $index < $page_count; $index++) {
+            $assignment = isset($assignments[$index]) && is_array($assignments[$index]) ? $assignments[$index] : array();
+            $actual = isset($actuals[$index]) && is_array($actuals[$index]) ? $actuals[$index] : array();
+            $pages[] = $this->build_trip_sheet_page_content($trip_id, $index, $page_count, $assignment, $actual);
+        }
+
+        return $this->build_pdf_from_page_streams($pages);
+    }
+
+    private function build_trip_sheet_page_content($trip_id, $index, $page_count, $assignment, $actual) {
+        $ops = '';
+        $x = 70;
+        $w = 472;
+        $school_id = absint(get_post_meta($trip_id, '_terricel_trip_school_id', true));
+        $group_id = absint(get_post_meta($trip_id, '_terricel_trip_group_id', true));
+        $event_parts = array_filter(
+            array(
+                $this->get_trip_group_name($trip_id),
+                sprintf(__('Primary Contact: %s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->get_trip_primary_contact_name($trip_id)),
+                $group_id > 0 ? sprintf(__('Emergency: %s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), get_post_meta($group_id, '_terricel_trip_group_advisor_emergency_phone', true)) : '',
+            ),
+            function($part) {
+                return '' !== trim(str_replace(array('Not set', 'Emergency:'), '', (string) $part));
+            }
+        );
+
+        $this->pdf_rect($ops, $x, 735, $w, 30);
+        $this->pdf_text($ops, 205, 745, __('Bus Field Trip Request', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 20, true);
+        $this->pdf_text($ops, 492, 745, sprintf(__('Page %1$s of %2$s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $index + 1, $page_count), 8, false);
+
+        $this->trip_sheet_field($ops, $x, 690, 236, 28, __('Day/Date:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_trip_sheet_date($trip_id));
+        $this->trip_sheet_field($ops, $x + 236, 690, 236, 28, __('Number of Buses Needed:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), (string) max(1, absint(get_post_meta($trip_id, '_terricel_trip_buses_needed', true))));
+        $this->trip_sheet_field($ops, $x, 645, 157, 28, __('Leave Garage:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_time_display($actual['left_yard_time'] ?? ''));
+        $this->trip_sheet_field($ops, $x + 157, 645, 158, 28, __('Leave School:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_time_display(get_post_meta($trip_id, '_terricel_trip_pickup_time', true)));
+        $this->trip_sheet_field($ops, $x + 315, 645, 157, 28, __('Time Returning:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_time_display(get_post_meta($trip_id, '_terricel_trip_return_time', true)));
+        $this->trip_sheet_field($ops, $x, 600, 236, 28, __('Pre-Trip Miles:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $actual['pre_trip_mileage'] ?? '', true);
+        $this->trip_sheet_field($ops, $x + 236, 600, 236, 28, __('Post Trip Miles:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $actual['post_trip_mileage'] ?? '', true);
+        $this->trip_sheet_large_field($ops, $x, 525, $w, 48, __('Trip Origin (School):', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->get_trip_sheet_origin_label($school_id));
+        $this->trip_sheet_large_field($ops, $x, 477, $w, 48, __('Trip Destination:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->get_trip_destination_label($trip_id));
+        $this->trip_sheet_large_field($ops, $x, 429, $w, 48, __('Event:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), implode(' | ', $event_parts));
+
+        $this->pdf_rect($ops, $x, 380, $w, 34);
+        $this->pdf_text($ops, 230, 391, __('Field Trip Log', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 20, true);
+        $this->pdf_text($ops, 95, 360, '*ATTENTION- IF GOING OUT OF STATE, DO SEPERATE MILEAGE FOR EACH STATE*', 12, true);
+
+        $this->pdf_rect($ops, $x, 220, $w, 130);
+        $this->pdf_line($ops, $x + 236, 220, $x + 236, 350);
+        foreach (array(324, 298, 272, 246) as $line_y) {
+            $this->pdf_line($ops, $x, $line_y, $x + $w, $line_y);
+        }
+
+        $bus_id = absint($assignment['bus_id'] ?? 0);
+        $driver_id = absint($assignment['driver_id'] ?? 0);
+        $this->trip_sheet_log_cell($ops, $x, 324, 236, 26, __('Bus Driver:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $driver_id ? get_the_title($driver_id) : '');
+        $this->trip_sheet_log_cell($ops, $x + 236, 324, 236, 26, __('Bus Number:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->get_trip_sheet_bus_number($bus_id));
+        $this->trip_sheet_log_cell($ops, $x, 298, 236, 26, __('Depart Time from School:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_time_display(($actual['departed_time'] ?? '') ?: get_post_meta($trip_id, '_terricel_trip_pickup_time', true)));
+        $this->trip_sheet_log_cell($ops, $x + 236, 298, 236, 26, __('Odometer Reading:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $actual['departed_mileage'] ?? '');
+        $this->trip_sheet_log_cell($ops, $x, 272, 236, 26, __('Destination Arrival Time:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_time_display(($actual['arrived_time'] ?? '') ?: get_post_meta($trip_id, '_terricel_trip_arrival_time', true)));
+        $this->trip_sheet_log_cell($ops, $x + 236, 272, 236, 26, __('Odometer Reading:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $actual['arrived_mileage'] ?? '');
+        $this->trip_sheet_log_cell($ops, $x, 246, 236, 26, __('Depart Time from Destination:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_time_display(($actual['returning_time'] ?? '') ?: get_post_meta($trip_id, '_terricel_trip_departure_time', true)));
+        $this->trip_sheet_log_cell($ops, $x + 236, 246, 236, 26, __('Odometer Reading:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $actual['returning_mileage'] ?? '');
+        $this->trip_sheet_log_cell($ops, $x, 220, 236, 26, __('Arrival Time at School:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_time_display(($actual['post_trip_time'] ?? '') ?: get_post_meta($trip_id, '_terricel_trip_return_time', true)));
+        $this->trip_sheet_log_cell($ops, $x + 236, 220, 236, 26, __('Odometer Reading:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $actual['post_trip_mileage'] ?? '');
+
+        $this->trip_sheet_large_field($ops, $x, 150, $w, 36, __('Bus Driver Signature:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '');
+        $this->trip_sheet_check_row($ops, $x, 85, $w, __('WALK THROUGH THE BUS DIRECTLY AFTER DROPPING GROUP', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN));
+        $this->trip_sheet_check_row($ops, $x, 45, $w, __('LOOK FOR ITEMS OR TRASH- IF ANY PLEASE PICK UP OR SWEEP', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN));
+
+        return $ops;
+    }
+
+    private function build_pdf_from_page_streams($page_streams) {
+        $objects = array(1 => '<< /Type /Catalog /Pages 2 0 R >>');
+        $kids = array();
+        $pages = array();
+        $next_id = 3;
+        foreach ($page_streams as $stream) {
+            $page_id = $next_id++;
+            $content_id = $next_id++;
+            $kids[] = $page_id . ' 0 R';
+            $pages[] = array('page_id' => $page_id, 'content_id' => $content_id);
+            $objects[$content_id] = "<< /Length " . strlen($stream) . " >>\nstream\n" . $stream . "endstream";
+        }
+        $normal_font_id = $next_id++;
+        $bold_font_id = $next_id++;
+        foreach ($pages as $page) {
+            $objects[$page['page_id']] = '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ' . $normal_font_id . ' 0 R /F2 ' . $bold_font_id . ' 0 R >> >> /Contents ' . $page['content_id'] . ' 0 R >>';
+        }
+        $objects[2] = '<< /Type /Pages /Kids [' . implode(' ', $kids) . '] /Count ' . count($page_streams) . ' >>';
+        $objects[$normal_font_id] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
+        $objects[$bold_font_id] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>';
+        ksort($objects);
+
+        $pdf = "%PDF-1.4\n";
+        $offsets = array(0);
+        foreach ($objects as $id => $object) {
+            $offsets[$id] = strlen($pdf);
+            $pdf .= $id . " 0 obj\n" . $object . "\nendobj\n";
+        }
+
+        $size = max(array_keys($objects)) + 1;
+        $xref_offset = strlen($pdf);
+        $pdf .= "xref\n0 " . $size . "\n0000000000 65535 f \n";
+        for ($id = 1; $id < $size; $id++) {
+            $pdf .= sprintf("%010d 00000 n \n", $offsets[$id] ?? 0);
+        }
+        $pdf .= "trailer\n<< /Size " . $size . " /Root 1 0 R >>\nstartxref\n" . $xref_offset . "\n%%EOF";
+
+        return $pdf;
+    }
+
+    private function pdf_rect(&$ops, $x, $y, $w, $h) {
+        $ops .= sprintf("%.2F %.2F %.2F %.2F re S\n", $x, $y, $w, $h);
+    }
+
+    private function pdf_line(&$ops, $x1, $y1, $x2, $y2) {
+        $ops .= sprintf("%.2F %.2F m %.2F %.2F l S\n", $x1, $y1, $x2, $y2);
+    }
+
+    private function pdf_text(&$ops, $x, $y, $text, $size = 10, $bold = false) {
+        $ops .= 'BT ' . ($bold ? '/F2 ' : '/F1 ') . absint($size) . ' Tf ' . sprintf("%.2F %.2F Td ", $x, $y) . '(' . $this->escape_pdf_text($text) . ") Tj ET\n";
+    }
+
+    private function trip_sheet_field(&$ops, $x, $y, $w, $h, $label, $value = '', $underline = false) {
+        $this->pdf_rect($ops, $x, $y, $w, $h);
+        $this->pdf_text($ops, $x + 6, $y + $h - 18, $label, 12, true);
+        if ('' !== (string) $value) {
+            $this->pdf_text($ops, $x + min($w - 70, 112), $y + $h - 18, $value, 10, false);
+        } elseif ($underline) {
+            $this->pdf_line($ops, $x + 110, $y + 10, $x + $w - 34, $y + 10);
+        }
+    }
+
+    private function trip_sheet_large_field(&$ops, $x, $y, $w, $h, $label, $value = '') {
+        $this->pdf_rect($ops, $x, $y, $w, $h);
+        $this->pdf_text($ops, $x + 6, $y + $h - 17, $label, 12, true);
+        $this->pdf_wrapped_text($ops, $x + 8, $y + $h - 34, (string) $value, 9, $w - 16, 2);
+    }
+
+    private function trip_sheet_log_cell(&$ops, $x, $y, $w, $h, $label, $value = '') {
+        $this->pdf_text($ops, $x + 6, $y + $h - 18, $label, 11, true);
+        if ('' !== (string) $value) {
+            $this->pdf_text($ops, $x + min($w - 80, 135), $y + $h - 18, $value, 9, false);
+        }
+    }
+
+    private function trip_sheet_check_row(&$ops, $x, $y, $w, $label) {
+        $this->pdf_rect($ops, $x, $y, $w, 36);
+        $this->pdf_rect($ops, $x + 38, $y + 16, 6, 6);
+        $this->pdf_text($ops, $x + 56, $y + 15, $label, 12, true);
+    }
+
+    private function pdf_wrapped_text(&$ops, $x, $y, $text, $size, $width, $max_lines = 2) {
+        $text = trim(wp_strip_all_tags((string) $text));
+        if ('' === $text) {
+            return;
+        }
+
+        $chars = max(18, (int) floor($width / max(4, $size * 0.52)));
+        $lines = array_slice(explode("\n", wordwrap($text, $chars, "\n", true)), 0, $max_lines);
+        foreach ($lines as $line) {
+            $this->pdf_text($ops, $x, $y, $line, $size, false);
+            $y -= $size + 3;
+        }
+    }
+
+    private function get_trip_sheet_download_url($trip_id) {
+        return wp_nonce_url(
+            add_query_arg(
+                array(
+                    'action'  => 'terricel_trips_download_trip_sheet',
+                    'trip_id' => absint($trip_id),
+                ),
+                admin_url('admin-post.php')
+            ),
+            'terricel_trips_download_trip_sheet_' . absint($trip_id)
+        );
+    }
+
+    private function format_trip_sheet_date($trip_id) {
+        $date = get_post_meta($trip_id, '_terricel_trip_pickup_date', true);
+        if (!$date) {
+            return '';
+        }
+
+        return date_i18n('l, F j, Y', strtotime($date));
+    }
+
+    private function get_trip_sheet_bus_number($bus_id) {
+        $bus_id = absint($bus_id);
+        if ($bus_id < 1) {
+            return '';
+        }
+
+        $number = get_post_meta($bus_id, '_terricel_bus_number', true);
+        return $number ? $number : get_the_title($bus_id);
+    }
+
+    private function get_trip_sheet_origin_label($school_id) {
+        $school_id = absint($school_id);
+        if ($school_id < 1) {
+            return '';
+        }
+
+        $label = $this->get_school_label($school_id);
+        $address = $this->get_school_origin_address($school_id);
+        return $address ? $label . ' - ' . $address : $label;
     }
 
     private function escape_pdf_text($text) {
@@ -3031,6 +3273,7 @@ JS;
             'terricel_destination' => __('Destination', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
             'terricel_assignments' => __('Assignments', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
             'terricel_last_modified' => __('Last Modified', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+            'terricel_trip_sheet' => __('Trip Sheet', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
         ));
     }
 
@@ -3049,6 +3292,8 @@ JS;
             echo wp_kses_post($this->format_trip_assignment_summary($post_id));
         } elseif ('terricel_last_modified' === $column) {
             echo wp_kses_post($this->format_trip_last_modified($post_id));
+        } elseif ('terricel_trip_sheet' === $column) {
+            echo '<a class="button button-small" href="' . esc_url($this->get_trip_sheet_download_url($post_id)) . '">' . esc_html__('Download', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</a>';
         }
     }
 
