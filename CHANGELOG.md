@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.4 - 2026-07-29
+
+- Updated Trip Billing actions to show View Invoice, Email Invoice, and Cancel Invoice for mileage-ready trips.
+- Added Cancel Invoice to missing-mileage rows and required typing CANCEL before an invoice can be voided.
+
 ## 0.3.3 - 2026-07-29
 
 - Updated Trip Billing eligibility so trips appear only after the saved anticipated return date and time has passed.

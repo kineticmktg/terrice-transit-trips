@@ -85,6 +85,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             add_action('wp_ajax_terricel_trip_driver_conflicts', array($this, 'ajax_trip_driver_conflicts'));
             add_action('wp_ajax_terricel_trip_bus_availability', array($this, 'ajax_trip_bus_availability'));
             add_action('wp_ajax_terricel_create_trip_organization', array($this, 'ajax_create_trip_organization'));
+            add_action('admin_post_terricel_trips_view_invoice', array($this, 'handle_view_invoice'));
             add_action('admin_post_terricel_trips_send_invoice', array($this, 'handle_send_invoice'));
             add_action('admin_post_terricel_trips_void_invoice', array($this, 'handle_void_invoice'));
         }
@@ -725,6 +726,9 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         if (!empty($_GET['terricel-trip-invoice-voided'])) {
             echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Invoice was voided.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</p></div>';
         }
+        if (!empty($_GET['terricel-trip-invoice-cancel-confirmation-missing'])) {
+            echo '<div class="notice notice-error is-dismissible"><p>' . esc_html__('Invoice was not canceled. Type CANCEL to confirm invoice cancellation.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</p></div>';
+        }
 
         $this->render_billing_status_views($filters['status'], $counts);
         $this->render_billing_filters($filters);
@@ -750,7 +754,6 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             $recipient = $this->get_trip_billing_recipient($trip_id);
             $totals = $this->get_trip_billing_totals($trip_id);
             $attachments = $this->get_trip_invoice_attachment_ids($trip_id);
-            $latest_invoice_url = $this->get_latest_invoice_attachment_url($trip_id);
             echo '<tr>';
             echo '<td><a href="' . esc_url(get_edit_post_link($trip_id)) . '">' . esc_html(get_the_title($trip_id)) . '</a></td>';
             echo '<td>' . esc_html($this->format_trip_pickup($trip_id)) . '</td>';
@@ -761,12 +764,13 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             echo '<td class="terricel-billing-actions">';
             if ($totals['missing_mileage']) {
                 echo '<a class="button button-primary terricel-button-danger" href="' . esc_url($this->get_trip_actuals_update_url($trip_id)) . '">' . esc_html__('Update Mileage', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</a>';
-            } else {
-                if ($latest_invoice_url) {
-                    echo '<a class="button button-primary" target="_blank" rel="noopener" href="' . esc_url($latest_invoice_url) . '">' . esc_html__('View PDF Invoice', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</a> ';
+                if ('voided' !== $this->get_trip_invoice_status($trip_id)) {
+                    echo $this->get_invoice_void_form($trip_id);
                 }
+            } else {
+                echo $this->get_invoice_view_form($trip_id);
                 echo $this->get_invoice_email_form($trip_id);
-                if ('voided' !== $this->get_trip_invoice_status($trip_id) && $latest_invoice_url) {
+                if ('voided' !== $this->get_trip_invoice_status($trip_id)) {
                     echo $this->get_invoice_void_form($trip_id);
                 }
             }
@@ -776,6 +780,40 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
 
         echo '</tbody></table>';
         echo '</div>';
+    }
+
+    public function handle_view_invoice() {
+        if (!current_user_can(Terricel_Transit_Trips_Plugin::CAP_MANAGE_TRIPS)) {
+            wp_die(esc_html__('You do not have permission to view invoices.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN));
+        }
+
+        $trip_id = absint($_GET['trip_id'] ?? 0);
+        check_admin_referer('terricel_trips_view_invoice_' . $trip_id);
+
+        $redirect = admin_url('admin.php?page=terricel-transit-trip-billing');
+        if ($trip_id < 1 || self::TRIP_POST_TYPE !== get_post_type($trip_id)) {
+            wp_safe_redirect(add_query_arg('terricel-trip-invoice-failed', 1, $redirect));
+            exit;
+        }
+
+        $totals = $this->get_trip_billing_totals($trip_id);
+        if ($totals['missing_mileage']) {
+            wp_safe_redirect(add_query_arg('terricel-trip-invoice-missing-mileage', 1, $redirect));
+            exit;
+        }
+
+        $pdf = $this->build_trip_invoice_pdf($trip_id, $this->get_trip_billing_recipient($trip_id), $totals);
+        if ('' === $pdf) {
+            wp_safe_redirect(add_query_arg('terricel-trip-invoice-failed', 1, $redirect));
+            exit;
+        }
+
+        nocache_headers();
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: inline; filename="' . sanitize_file_name('trip-invoice-' . $trip_id . '.pdf') . '"');
+        header('Content-Length: ' . strlen($pdf));
+        echo $pdf;
+        exit;
     }
 
     public function handle_send_invoice() {
@@ -847,6 +885,12 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         check_admin_referer('terricel_trips_void_invoice_' . $trip_id);
 
         $redirect = admin_url('admin.php?page=terricel-transit-trip-billing&billing_status=voided');
+        $confirmation = isset($_POST['cancel_confirmation']) ? sanitize_text_field(wp_unslash($_POST['cancel_confirmation'])) : '';
+        if ('CANCEL' !== $confirmation) {
+            wp_safe_redirect(add_query_arg('terricel-trip-invoice-cancel-confirmation-missing', 1, $redirect));
+            exit;
+        }
+
         if ($trip_id < 1 || self::TRIP_POST_TYPE !== get_post_type($trip_id)) {
             wp_safe_redirect(add_query_arg('terricel-trip-invoice-failed', 1, $redirect));
             exit;
@@ -1381,6 +1425,18 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         return $attachment_id > 0 ? wp_get_attachment_url($attachment_id) : '';
     }
 
+    private function get_invoice_view_form($trip_id) {
+        ob_start();
+        echo '<form class="terricel-inline-action-form" method="get" action="' . esc_url(admin_url('admin-post.php')) . '" target="_blank">';
+        wp_nonce_field('terricel_trips_view_invoice_' . $trip_id);
+        echo '<input type="hidden" name="action" value="terricel_trips_view_invoice">';
+        echo '<input type="hidden" name="trip_id" value="' . esc_attr($trip_id) . '">';
+        submit_button(__('View Invoice', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'primary small', 'submit', false);
+        echo '</form>';
+
+        return ob_get_clean();
+    }
+
     private function get_invoice_email_form($trip_id) {
         ob_start();
         echo '<form class="terricel-inline-action-form" method="post" action="' . esc_url(admin_url('admin-post.php')) . '" onsubmit="return window.confirm(\'' . esc_js(__('Email this invoice PDF to the billing contact?', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)) . '\');">';
@@ -1395,10 +1451,11 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
 
     private function get_invoice_void_form($trip_id) {
         ob_start();
-        echo '<form class="terricel-inline-action-form" method="post" action="' . esc_url(admin_url('admin-post.php')) . '" onsubmit="return window.confirm(\'' . esc_js(__('Cancel and void this invoice?', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)) . '\');">';
+        echo '<form class="terricel-inline-action-form" method="post" action="' . esc_url(admin_url('admin-post.php')) . '" onsubmit="var value=window.prompt(\'' . esc_js(__('Type CANCEL to cancel this invoice.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)) . '\'); if(value!==\'CANCEL\'){return false;} this.querySelector(\'[name=&quot;cancel_confirmation&quot;]\').value=value; return true;">';
         wp_nonce_field('terricel_trips_void_invoice_' . $trip_id);
         echo '<input type="hidden" name="action" value="terricel_trips_void_invoice">';
         echo '<input type="hidden" name="trip_id" value="' . esc_attr($trip_id) . '">';
+        echo '<input type="hidden" name="cancel_confirmation" value="">';
         echo '<button type="submit" class="button-link-delete">' . esc_html__('Cancel Invoice', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</button>';
         echo '</form>';
 
