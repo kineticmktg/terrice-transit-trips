@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.10 - 2026-07-29
+
+- Right-aligned the Number of Buses Needed, Leave School, and Time Returning values in the field trip request PDF.
+
 ## 0.3.9 - 2026-07-29
 
 - Prevented drivers assigned to overlapping trips from appearing in substitute/run driver selection unless Add Any Driver is checked.

@@ -1502,10 +1502,10 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         $this->pdf_text($ops, 205, 745, __('Bus Field Trip Request', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 20, true);
 
         $this->trip_sheet_field($ops, $x, 690, 236, 28, __('Day/Date:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_trip_sheet_date($trip_id));
-        $this->trip_sheet_field($ops, $x + 236, 690, 236, 28, __('Number of Buses Needed:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), (string) max(1, absint(get_post_meta($trip_id, '_terricel_trip_buses_needed', true))), false, 128, 8);
+        $this->trip_sheet_field($ops, $x + 236, 690, 236, 28, __('Number of Buses Needed:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), (string) max(1, absint(get_post_meta($trip_id, '_terricel_trip_buses_needed', true))), false, null, 8, 'right');
         $this->trip_sheet_field($ops, $x, 645, 157, 28, __('Leave Garage:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->get_trip_sheet_leave_garage_time($trip_id), false, 104);
-        $this->trip_sheet_field($ops, $x + 157, 645, 158, 28, __('Leave School:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_time_display(get_post_meta($trip_id, '_terricel_trip_pickup_time', true)), false, 120);
-        $this->trip_sheet_field($ops, $x + 315, 645, 157, 28, __('Time Returning:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_time_display(get_post_meta($trip_id, '_terricel_trip_return_time', true)), false, 128);
+        $this->trip_sheet_field($ops, $x + 157, 645, 158, 28, __('Leave School:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_time_display(get_post_meta($trip_id, '_terricel_trip_pickup_time', true)), false, null, null, 'right');
+        $this->trip_sheet_field($ops, $x + 315, 645, 157, 28, __('Time Returning:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_time_display(get_post_meta($trip_id, '_terricel_trip_return_time', true)), false, null, null, 'right');
         $this->trip_sheet_field($ops, $x, 600, 236, 28, __('Pre-Trip Miles:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $actual['pre_trip_mileage'] ?? '');
         $this->trip_sheet_field($ops, $x + 236, 600, 236, 28, __('Post Trip Miles:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $actual['post_trip_mileage'] ?? '');
         $this->trip_sheet_large_field($ops, $x, 525, $w, 48, __('Trip Origin (School):', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->get_trip_sheet_origin_label($school_id, $trip_id));
@@ -1595,16 +1595,40 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         $ops .= 'BT ' . ($bold ? '/F2 ' : '/F1 ') . absint($size) . ' Tf ' . sprintf("%.2F %.2F Td ", $x, $y) . '(' . $this->escape_pdf_text($text) . ") Tj ET\n";
     }
 
-    private function trip_sheet_field(&$ops, $x, $y, $w, $h, $label, $value = '', $underline = false, $value_x_offset = null, $value_y_offset = null) {
+    private function trip_sheet_field(&$ops, $x, $y, $w, $h, $label, $value = '', $underline = false, $value_x_offset = null, $value_y_offset = null, $value_align = 'left') {
         $this->pdf_rect($ops, $x, $y, $w, $h);
         $this->pdf_text($ops, $x + 6, $y + $h - 18, $label, 12, true);
         if ('' !== (string) $value) {
-            $value_x = null === $value_x_offset ? min($w - 70, 112) : $value_x_offset;
+            if ('right' === $value_align) {
+                $value_x = $w - 8 - $this->estimate_pdf_text_width((string) $value, 10);
+            } else {
+                $value_x = null === $value_x_offset ? min($w - 70, 112) : $value_x_offset;
+            }
             $value_y = null === $value_y_offset ? $h - 18 : $value_y_offset;
             $this->pdf_text($ops, $x + $value_x, $y + $value_y, $value, 10, false);
         } elseif ($underline) {
             $this->pdf_line($ops, $x + 110, $y + 10, $x + $w - 34, $y + 10);
         }
+    }
+
+    private function estimate_pdf_text_width($text, $size) {
+        $text = (string) $text;
+        $width = 0;
+        $wide_chars = array('m', 'w', 'M', 'W');
+        $narrow_chars = array('i', 'l', 'I', '1', '.', ':', ' ');
+
+        for ($i = 0, $length = strlen($text); $i < $length; $i++) {
+            $char = $text[$i];
+            if (in_array($char, $wide_chars, true)) {
+                $width += $size * 0.72;
+            } elseif (in_array($char, $narrow_chars, true)) {
+                $width += $size * 0.28;
+            } else {
+                $width += $size * 0.52;
+            }
+        }
+
+        return $width;
     }
 
     private function trip_sheet_large_field(&$ops, $x, $y, $w, $h, $label, $value = '') {
