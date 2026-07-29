@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.9 - 2026-07-29
+
+- Prevented drivers assigned to overlapping trips from appearing in substitute/run driver selection unless Add Any Driver is checked.
+- Made the Trips assignment Add Any Driver checkbox submit with the row so server-side saves honor the same override as the UI.
+
 ## 0.3.8 - 2026-07-29
 
 - Refined Trip Sheet PDF layout, removed page labels, adjusted top field spacing, added destination address and printed-by footer, and left Field Trip Log time fields blank.

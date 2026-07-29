@@ -50,6 +50,8 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
     }
 
     protected function register_hooks() {
+        add_filter('terricel_logistics_driver_can_substitute_run', array($this, 'filter_driver_can_substitute_run'), 10, 5);
+
         if (is_admin()) {
             add_action('admin_init', array($this, 'ensure_other_organization'));
             add_action('admin_menu', array($this, 'register_billing_menu'), 1000);
@@ -2810,12 +2812,16 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         foreach (array_slice($assignments, 0, $limit) as $assignment) {
             $bus_id = absint($assignment['bus_id'] ?? 0);
             $driver_id = absint($assignment['driver_id'] ?? 0);
+            $allow_any_driver = !empty($assignment['add_any_driver']);
             if ($bus_id > 0) {
                 if (in_array($bus_id, $used_bus_ids, true) || ($trip_id > 0 && $this->bus_has_trip_conflict($bus_id, $trip_id))) {
                     $bus_id = 0;
                 } else {
                     $used_bus_ids[] = $bus_id;
                 }
+            }
+            if ($driver_id > 0 && !$allow_any_driver && $trip_id > 0 && $this->driver_has_trip_conflict($driver_id, $trip_id)) {
+                $driver_id = 0;
             }
             if ($bus_id < 1 && $driver_id < 1) {
                 continue;
@@ -3342,7 +3348,7 @@ function selectedDriverIds(){return Array.prototype.slice.call(document.querySel
 function dayKeyFromDate(dateValue){var parts=String(dateValue||"").split("-");if(parts.length!==3){return "";}var date=new Date(Number(parts[0]),Number(parts[1])-1,Number(parts[2]));if(isNaN(date.getTime())){return "";}return ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"][date.getDay()];}
 function selectedTripDayKeys(){var start=value("terricel_trip_pickup_date");if(!start){return [];}var end=value("terricel_trip_return_date")||start;var startParts=start.split("-");var endParts=end.split("-");var current=new Date(Number(startParts[0]),Number(startParts[1])-1,Number(startParts[2]));var last=new Date(Number(endParts[0]),Number(endParts[1])-1,Number(endParts[2]));if(isNaN(current.getTime())){return [];}if(isNaN(last.getTime())||last<current){last=new Date(current.getTime());}var days=[];while(current<=last){var key=dayKeyFromDate(current.getFullYear()+"-"+String(current.getMonth()+1).padStart(2,"0")+"-"+String(current.getDate()).padStart(2,"0"));if(key&&days.indexOf(key)<0){days.push(key);}current.setDate(current.getDate()+1);}return days;}
 function driverSelects(){return Array.prototype.slice.call(document.querySelectorAll("#terricel_trip_assignment_rows select[name*='[driver_id]']"));}
-function driverOptionEligible(option,days){if(!option||parseInt(option.value,10)<1||!days.length){return true;}var available=(option.dataset.terricelTripDays||"").split(",").filter(Boolean);return days.every(function(day){return available.indexOf(day)>-1;});}
+function driverOptionEligible(option,days){if(!option||parseInt(option.value,10)<1){return true;}if(option.dataset.terricelTripConflict==="1"){return false;}if(!days.length){return true;}var available=(option.dataset.terricelTripDays||"").split(",").filter(Boolean);return days.every(function(day){return available.indexOf(day)>-1;});}
 function rowAllowsAnyDriver(select){var row=select?select.closest(".terricel-trip-assignment-slot-row"):null;var checkbox=row?row.querySelector(".terricel-trip-add-any-driver"):null;return !!(checkbox&&checkbox.checked);}
 function syncDriverOptions(){var days=selectedTripDayKeys();driverSelects().forEach(function(select){var selectedOption=select.options[select.selectedIndex];var allowAny=rowAllowsAnyDriver(select);Array.prototype.slice.call(select.options).forEach(function(option){var eligible=allowAny||driverOptionEligible(option,days);var isSelected=option===selectedOption&&parseInt(option.value,10)>0;option.hidden=!eligible&&!isSelected;option.disabled=!eligible&&!isSelected;});});}
 function makeConflictSignature(conflicts){return JSON.stringify((conflicts||[]).map(function(item){return [item.driver_id||0,item.route_id||0,item.date||"",item.run_key||"",item.start_time||"",item.end_time||""].join("|");}).sort());}
@@ -3725,27 +3731,31 @@ JS;
         $trip_day_keys = $this->get_trip_assignment_day_keys($trip_id);
         $options = '<option value="0">' . esc_html__('No driver', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</option>';
         $has_selected_ineligible_driver = false;
+        $allow_any_name = preg_replace('/\[driver_id\]$/', '[add_any_driver]', $name);
 
         foreach ($this->get_posts_for_select(Terricel_Logistics_Shared_Data::DRIVER_POST_TYPE) as $driver) {
             $driver_day_keys = $this->get_trip_driver_available_day_keys($driver->ID);
             $is_selected = absint($selected) === absint($driver->ID);
-            $is_eligible = $this->driver_covers_trip_day_keys($driver_day_keys, $trip_day_keys);
+            $has_trip_conflict = $trip_id > 0 && $this->driver_has_trip_conflict($driver->ID, $trip_id);
+            $is_eligible = $this->driver_covers_trip_day_keys($driver_day_keys, $trip_day_keys) && !$has_trip_conflict;
 
             $label = get_the_title($driver);
             if (!$is_eligible && $is_selected) {
                 $has_selected_ineligible_driver = true;
+                $reason = $has_trip_conflict ? __('already assigned to another trip during this time', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) : __('not eligible for selected trip dates', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN);
                 $label = sprintf(
-                    /* translators: %s: driver name. */
-                    __('%s (currently assigned; not eligible for selected trip dates)', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
-                    $label
+                    /* translators: 1: driver name, 2: ineligibility reason. */
+                    __('%1$s (currently assigned; %2$s)', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+                    $label,
+                    $reason
                 );
             }
 
-            $options .= '<option value="' . esc_attr($driver->ID) . '"' . selected($selected, $driver->ID, false) . (!$is_eligible && !$is_selected ? ' hidden disabled' : '') . ' data-terricel-trip-days="' . esc_attr(implode(',', $driver_day_keys)) . '">' . esc_html($label) . '</option>';
+            $options .= '<option value="' . esc_attr($driver->ID) . '"' . selected($selected, $driver->ID, false) . (!$is_eligible && !$is_selected ? ' hidden disabled' : '') . ' data-terricel-trip-days="' . esc_attr(implode(',', $driver_day_keys)) . '" data-terricel-trip-conflict="' . esc_attr($has_trip_conflict ? '1' : '0') . '">' . esc_html($label) . '</option>';
         }
 
         $html = '<div class="terricel-trip-driver-picker">';
-        $html .= '<label class="terricel-trip-add-any-driver-wrap"><input type="checkbox" class="terricel-trip-add-any-driver" value="1"' . checked($has_selected_ineligible_driver, true, false) . '> ' . esc_html__('Add Any Driver', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</label>';
+        $html .= '<label class="terricel-trip-add-any-driver-wrap"><input type="checkbox" class="terricel-trip-add-any-driver" name="' . esc_attr($allow_any_name) . '" value="1"' . checked($has_selected_ineligible_driver, true, false) . '> ' . esc_html__('Add Any Driver', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</label>';
         $html .= '<select name="' . esc_attr($name) . '" class="terricel-trip-driver-select">' . $options . '</select>';
         $html .= '</div>';
         return $html;
@@ -3849,6 +3859,99 @@ JS;
         $end_time = get_post_meta($trip_id, '_terricel_trip_return_time', true) ?: '23:59';
 
         return $this->bus_has_trip_conflict_for_window($bus_id, $trip_id, $start_date, $start_time, $end_date, $end_time);
+    }
+
+    public function filter_driver_can_substitute_run($can_substitute, $driver_id, $date, $run_context, $context = array()) {
+        if (!$can_substitute || !empty($context['allow_any_driver'])) {
+            return $can_substitute;
+        }
+
+        $run_window = is_array($context) && isset($context['run_window']) && is_array($context['run_window']) ? $context['run_window'] : null;
+        if ($run_window && isset($run_window['start'], $run_window['end'])) {
+            return !$this->driver_has_trip_conflict_for_timestamps($driver_id, absint($run_window['start']), absint($run_window['end']));
+        }
+
+        $run_context = is_array($run_context) ? $run_context : array();
+        $start_time = isset($run_context['start_time']) ? $this->sanitize_time($run_context['start_time']) : '';
+        $end_time = isset($run_context['end_time']) ? $this->sanitize_time($run_context['end_time']) : '';
+
+        return !$this->driver_has_trip_conflict_for_window($driver_id, 0, $date, $start_time, $date, $end_time);
+    }
+
+    private function driver_has_trip_conflict($driver_id, $trip_id) {
+        $start_date = get_post_meta($trip_id, '_terricel_trip_pickup_date', true);
+        $start_time = get_post_meta($trip_id, '_terricel_trip_pickup_time', true);
+        $end_date = get_post_meta($trip_id, '_terricel_trip_return_date', true) ?: $start_date;
+        $end_time = get_post_meta($trip_id, '_terricel_trip_return_time', true) ?: '23:59';
+
+        return $this->driver_has_trip_conflict_for_window($driver_id, $trip_id, $start_date, $start_time, $end_date, $end_time);
+    }
+
+    private function driver_has_trip_conflict_for_window($driver_id, $trip_id, $start_date, $start_time, $end_date, $end_time) {
+        $start = $this->get_window_start_timestamp($start_date, $start_time);
+        $end = $this->get_window_end_timestamp($start_date, $start_time, $end_date, $end_time);
+
+        return $this->driver_has_trip_conflict_for_timestamps($driver_id, $start, $end, $trip_id);
+    }
+
+    private function driver_has_trip_conflict_for_timestamps($driver_id, $start, $end, $exclude_trip_id = 0) {
+        $driver_id = absint($driver_id);
+        $exclude_trip_id = absint($exclude_trip_id);
+
+        if ($driver_id < 1 || !$start || !$end) {
+            return false;
+        }
+
+        foreach ($this->get_all_trip_posts() as $trip) {
+            if (absint($trip->ID) === $exclude_trip_id) {
+                continue;
+            }
+
+            foreach ($this->get_trip_assignments($trip->ID) as $assignment) {
+                if (absint($assignment['driver_id'] ?? 0) !== $driver_id) {
+                    continue;
+                }
+
+                $other_start_date = get_post_meta($trip->ID, '_terricel_trip_pickup_date', true);
+                $other_start_time = get_post_meta($trip->ID, '_terricel_trip_pickup_time', true);
+                $other_end_date = get_post_meta($trip->ID, '_terricel_trip_return_date', true) ?: $other_start_date;
+                $other_end_time = get_post_meta($trip->ID, '_terricel_trip_return_time', true) ?: '23:59';
+                $other_start = $this->get_window_start_timestamp($other_start_date, $other_start_time);
+                $other_end = $this->get_window_end_timestamp($other_start_date, $other_start_time, $other_end_date, $other_end_time);
+
+                if ($other_start && $other_end && $start < $other_end && $other_start < $end) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function get_window_start_timestamp($date, $time) {
+        $date = $this->sanitize_date($date);
+        $time = $this->sanitize_time($time);
+        if (!$date || !$time) {
+            return 0;
+        }
+
+        return strtotime($date . ' ' . $time);
+    }
+
+    private function get_window_end_timestamp($start_date, $start_time, $end_date, $end_time) {
+        $start = $this->get_window_start_timestamp($start_date, $start_time);
+        $end_date = $this->sanitize_date($end_date) ?: $this->sanitize_date($start_date);
+        $end_time = $this->sanitize_time($end_time) ?: '23:59';
+        if (!$start || !$end_date || !$end_time) {
+            return 0;
+        }
+
+        $end = strtotime($end_date . ' ' . $end_time);
+        if ($end && $end <= $start) {
+            $end += DAY_IN_SECONDS;
+        }
+
+        return $end;
     }
 
     private function bus_has_trip_conflict_for_window($bus_id, $trip_id, $start_date, $start_time, $end_date, $end_time) {
