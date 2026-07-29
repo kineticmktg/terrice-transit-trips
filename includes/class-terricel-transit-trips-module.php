@@ -51,13 +51,18 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
 
     protected function register_hooks() {
         if (is_admin()) {
+            add_action('admin_init', array($this, 'ensure_other_organization'));
+            add_action('admin_menu', array($this, 'register_billing_menu'), 1000);
             add_action('admin_menu', array($this, 'remove_duplicate_module_menu'), 1001);
+            add_filter('terricel_logistics_configuration_menu_items', array($this, 'add_configuration_menu_items'));
             add_action('add_meta_boxes', array($this, 'add_meta_boxes'));
             add_action('save_post_' . self::TRIP_POST_TYPE, array($this, 'save_trip_meta'), 10, 2);
             add_action('save_post_' . self::GROUP_POST_TYPE, array($this, 'save_group_meta'), 10, 2);
             add_action('save_post_' . self::ORGANIZATION_POST_TYPE, array($this, 'save_organization_meta'), 10, 2);
             add_action('save_post_' . Terricel_Logistics_Shared_Data::BUS_POST_TYPE, array($this, 'save_bus_trip_meta'), 20);
             add_action('save_post_' . Terricel_Logistics_Shared_Data::SCHOOL_POST_TYPE, array($this, 'maybe_cancel_school_closed_trips'), 30, 2);
+            add_action('wp_trash_post', array($this, 'prevent_deleting_records_with_past_trips'));
+            add_action('before_delete_post', array($this, 'prevent_deleting_records_with_past_trips'));
             add_filter('manage_' . self::TRIP_POST_TYPE . '_posts_columns', array($this, 'trip_columns'));
             add_action('manage_' . self::TRIP_POST_TYPE . '_posts_custom_column', array($this, 'render_trip_column'), 10, 2);
             add_filter('views_edit-' . self::TRIP_POST_TYPE, array($this, 'trip_list_views'));
@@ -80,6 +85,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             add_action('wp_ajax_terricel_trip_driver_conflicts', array($this, 'ajax_trip_driver_conflicts'));
             add_action('wp_ajax_terricel_trip_bus_availability', array($this, 'ajax_trip_bus_availability'));
             add_action('wp_ajax_terricel_create_trip_organization', array($this, 'ajax_create_trip_organization'));
+            add_action('admin_post_terricel_trips_send_invoice', array($this, 'handle_send_invoice'));
         }
     }
 
@@ -91,6 +97,32 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
     public function remove_duplicate_module_menu() {
         remove_submenu_page('terricel-transit', 'terricel-transit-' . self::MODULE_ID);
         remove_submenu_page('terricel-transit', 'edit.php?post_type=' . self::GROUP_POST_TYPE);
+        remove_submenu_page('terricel-transit', 'edit.php?post_type=' . self::ORGANIZATION_POST_TYPE);
+    }
+
+    public function add_configuration_menu_items($items) {
+        if (!current_user_can(Terricel_Transit_Trips_Plugin::CAP_MANAGE_TRIPS)) {
+            return $items;
+        }
+
+        $items[] = array(
+            'label' => __('Organizations', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+            'slug'  => 'edit.php?post_type=' . self::ORGANIZATION_POST_TYPE,
+            'url'   => admin_url('edit.php?post_type=' . self::ORGANIZATION_POST_TYPE),
+        );
+
+        return $items;
+    }
+
+    public function register_billing_menu() {
+        add_submenu_page(
+            'terricel-transit',
+            __('Trip Billing', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+            __('Billing', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+            Terricel_Transit_Trips_Plugin::CAP_MANAGE_TRIPS,
+            'terricel-transit-trip-billing',
+            array($this, 'render_billing_page')
+        );
     }
 
     private function register_trip_post_type() {
@@ -151,7 +183,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
                 ),
                 'public'             => false,
                 'show_ui'            => true,
-                'show_in_menu'       => 'terricel-transit',
+                'show_in_menu'       => false,
                 'show_in_rest'       => false,
                 'supports'           => array('title'),
                 'capability_type'    => 'post',
@@ -189,6 +221,40 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         add_meta_box('terricel_trip_group_details', __('Group Details', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), array($this, 'render_group_details_meta_box'), self::GROUP_POST_TYPE, 'normal', 'high');
         add_meta_box('terricel_trip_organization_details', __('Organization Details', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), array($this, 'render_organization_details_meta_box'), self::ORGANIZATION_POST_TYPE, 'normal', 'high');
         add_meta_box('terricel_bus_trip_eligibility', __('Trip Eligibility', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), array($this, 'render_bus_trip_eligibility_meta_box'), Terricel_Logistics_Shared_Data::BUS_POST_TYPE, 'side');
+    }
+
+    public function ensure_other_organization() {
+        if (!current_user_can(Terricel_Transit_Trips_Plugin::CAP_MANAGE_TRIPS)) {
+            return;
+        }
+
+        $existing = get_posts(
+            array(
+                'post_type'      => self::ORGANIZATION_POST_TYPE,
+                'post_status'    => 'publish',
+                'posts_per_page' => 1,
+                'title'          => 'Other',
+                'fields'         => 'ids',
+            )
+        );
+
+        if (!empty($existing)) {
+            return;
+        }
+
+        $organization_id = wp_insert_post(
+            array(
+                'post_type'   => self::ORGANIZATION_POST_TYPE,
+                'post_status' => 'publish',
+                'post_title'  => 'Other',
+            ),
+            true
+        );
+
+        if (!is_wp_error($organization_id) && $organization_id > 0) {
+            update_post_meta($organization_id, '_terricel_trip_organization_short_name', 'Other');
+            update_post_meta($organization_id, '_terricel_trip_organization_is_other', 1);
+        }
     }
 
     public function render_trip_details_meta_box($post) {
@@ -374,15 +440,35 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         $main_phone_extension = get_post_meta($post->ID, '_terricel_trip_group_advisor_main_phone_extension', true);
         $emergency_phone = get_post_meta($post->ID, '_terricel_trip_group_advisor_emergency_phone', true);
         $email = get_post_meta($post->ID, '_terricel_trip_group_advisor_email', true);
+        $billing_address_1 = get_post_meta($post->ID, '_terricel_trip_group_billing_address_1', true);
+        $billing_address_2 = get_post_meta($post->ID, '_terricel_trip_group_billing_address_2', true);
+        $billing_city = get_post_meta($post->ID, '_terricel_trip_group_billing_city', true);
+        $billing_state = get_post_meta($post->ID, '_terricel_trip_group_billing_state', true);
+        $billing_zip = get_post_meta($post->ID, '_terricel_trip_group_billing_zip', true);
 
         echo '<div class="terricel-group-details-grid">';
-        $this->render_organization_select_field('terricel_trip_group_school_id', __('Organization', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $school_id, __('Select organization', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN));
+        if ($school_id > 0) {
+            echo '<p><label for="terricel_trip_group_school_id_locked"><strong>' . esc_html__('Organization', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</strong></label><br>';
+            echo '<input class="widefat" type="text" id="terricel_trip_group_school_id_locked" value="' . esc_attr($this->get_school_label($school_id)) . '" readonly>';
+            echo '<input type="hidden" name="terricel_trip_group_school_id" value="' . esc_attr($school_id) . '">';
+            echo '<span class="description">' . esc_html__('This group is locked to its assigned organization and can not be changed.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</span></p>';
+        } else {
+            $this->render_organization_select_field('terricel_trip_group_school_id', __('Organization', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $school_id, __('Select organization', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN));
+        }
         $this->render_text_field('terricel_trip_group_advisor_first_name', __('Primary Contact First Name', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $first_name, 'text');
         $this->render_text_field('terricel_trip_group_advisor_last_name', __('Primary Contact Last Name', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $last_name, 'text');
         $this->render_text_field('terricel_trip_group_advisor_main_phone', __('Main Phone', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $main_phone, 'tel');
         $this->render_text_field('terricel_trip_group_advisor_main_phone_extension', __('Extension', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $main_phone_extension, 'text', 'numeric');
         $this->render_text_field('terricel_trip_group_advisor_emergency_phone', __('Emergency Phone', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $emergency_phone, 'tel');
-        $this->render_text_field('terricel_trip_group_advisor_email', __('Email', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $email, 'email');
+        $this->render_text_field('terricel_trip_group_advisor_email', __('Email', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $email, 'email', '', true);
+        echo '</div>';
+        echo '<h3>' . esc_html__('Billing Address', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</h3>';
+        echo '<div class="terricel-group-details-grid">';
+        $this->render_text_field('terricel_trip_group_billing_address_1', __('Address 1', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $billing_address_1, 'text');
+        $this->render_text_field('terricel_trip_group_billing_address_2', __('Address 2', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $billing_address_2, 'text');
+        $this->render_text_field('terricel_trip_group_billing_city', __('City', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $billing_city, 'text');
+        $this->render_text_field('terricel_trip_group_billing_state', __('State', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $billing_state, 'text');
+        $this->render_text_field('terricel_trip_group_billing_zip', __('ZIP', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $billing_zip, 'text');
         echo '</div>';
         echo '<p class="description">' . esc_html__('Organizations receive the bills for group activity.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</p>';
     }
@@ -406,7 +492,7 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         $this->render_text_field('terricel_trip_organization_state', __('State', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $state, 'text');
         $this->render_text_field('terricel_trip_organization_zip', __('ZIP', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $zip, 'text');
         $this->render_text_field('terricel_trip_organization_phone', __('Main Phone', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $phone, 'tel');
-        $this->render_text_field('terricel_trip_organization_email', __('Email', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $email, 'email');
+        $this->render_text_field('terricel_trip_organization_email', __('Email', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $email, 'email', '', !$this->is_other_organization($post->ID));
         echo '</div>';
     }
 
@@ -510,14 +596,27 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             return;
         }
 
-        $organization_id = absint($_POST['terricel_trip_group_school_id'] ?? 0);
-        update_post_meta($post_id, '_terricel_trip_group_school_id', $this->is_valid_trip_organization($organization_id) ? $organization_id : 0);
+        $existing_organization_id = absint(get_post_meta($post_id, '_terricel_trip_group_school_id', true));
+        if ($existing_organization_id > 0) {
+            $organization_id = $existing_organization_id;
+        } else {
+            $organization_id = absint($_POST['terricel_trip_group_school_id'] ?? 0);
+            $organization_id = $this->is_valid_trip_organization($organization_id) ? $organization_id : 0;
+        }
+        update_post_meta($post_id, '_terricel_trip_group_school_id', $organization_id);
         update_post_meta($post_id, '_terricel_trip_group_advisor_first_name', $this->sanitize_person_name($_POST['terricel_trip_group_advisor_first_name'] ?? ''));
         update_post_meta($post_id, '_terricel_trip_group_advisor_last_name', $this->sanitize_person_name($_POST['terricel_trip_group_advisor_last_name'] ?? ''));
         update_post_meta($post_id, '_terricel_trip_group_advisor_main_phone', $this->sanitize_phone($_POST['terricel_trip_group_advisor_main_phone'] ?? ''));
         update_post_meta($post_id, '_terricel_trip_group_advisor_main_phone_extension', $this->sanitize_extension($_POST['terricel_trip_group_advisor_main_phone_extension'] ?? ''));
         update_post_meta($post_id, '_terricel_trip_group_advisor_emergency_phone', $this->sanitize_phone($_POST['terricel_trip_group_advisor_emergency_phone'] ?? ''));
-        update_post_meta($post_id, '_terricel_trip_group_advisor_email', sanitize_email(wp_unslash($_POST['terricel_trip_group_advisor_email'] ?? '')));
+        $email = sanitize_email(wp_unslash($_POST['terricel_trip_group_advisor_email'] ?? ''));
+        update_post_meta($post_id, '_terricel_trip_group_advisor_email', $email);
+        update_post_meta($post_id, '_terricel_trip_group_billing_address_1', sanitize_text_field(wp_unslash($_POST['terricel_trip_group_billing_address_1'] ?? '')));
+        update_post_meta($post_id, '_terricel_trip_group_billing_address_2', sanitize_text_field(wp_unslash($_POST['terricel_trip_group_billing_address_2'] ?? '')));
+        update_post_meta($post_id, '_terricel_trip_group_billing_city', sanitize_text_field(wp_unslash($_POST['terricel_trip_group_billing_city'] ?? '')));
+        update_post_meta($post_id, '_terricel_trip_group_billing_state', sanitize_text_field(wp_unslash($_POST['terricel_trip_group_billing_state'] ?? '')));
+        update_post_meta($post_id, '_terricel_trip_group_billing_zip', sanitize_text_field(wp_unslash($_POST['terricel_trip_group_billing_zip'] ?? '')));
+        $this->maybe_flag_required_email_missing($post_id, $email, 'terricel-trip-group-email-required');
     }
 
     public function save_organization_meta($post_id, $post) {
@@ -532,7 +631,11 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         update_post_meta($post_id, '_terricel_trip_organization_state', sanitize_text_field(wp_unslash($_POST['terricel_trip_organization_state'] ?? '')));
         update_post_meta($post_id, '_terricel_trip_organization_zip', sanitize_text_field(wp_unslash($_POST['terricel_trip_organization_zip'] ?? '')));
         update_post_meta($post_id, '_terricel_trip_organization_phone', $this->sanitize_phone($_POST['terricel_trip_organization_phone'] ?? ''));
-        update_post_meta($post_id, '_terricel_trip_organization_email', sanitize_email(wp_unslash($_POST['terricel_trip_organization_email'] ?? '')));
+        $email = sanitize_email(wp_unslash($_POST['terricel_trip_organization_email'] ?? ''));
+        update_post_meta($post_id, '_terricel_trip_organization_email', $email);
+        if (!$this->is_other_organization($post_id)) {
+            $this->maybe_flag_required_email_missing($post_id, $email, 'terricel-trip-organization-email-required');
+        }
     }
 
     public function save_bus_trip_meta($post_id) {
@@ -560,6 +663,13 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             $location = add_query_arg('terricel-trip-incomplete', 1, $location);
         }
 
+        foreach (array('terricel-trip-group-email-required', 'terricel-trip-organization-email-required') as $notice_key) {
+            if ((int) get_transient($notice_key . '_' . get_current_user_id()) === absint($post_id)) {
+                delete_transient($notice_key . '_' . get_current_user_id());
+                $location = add_query_arg($notice_key, 1, $location);
+            }
+        }
+
         return $location;
     }
 
@@ -576,6 +686,444 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
             echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Trip draft saved.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</p></div>';
         }
 
+        if (!empty($_GET['terricel-trip-group-email-required'])) {
+            echo '<div class="notice notice-error is-dismissible"><p>' . esc_html__('Groups require an email address before they can be published.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</p></div>';
+        }
+
+        if (!empty($_GET['terricel-trip-organization-email-required'])) {
+            echo '<div class="notice notice-error is-dismissible"><p>' . esc_html__('Organizations require an email address before they can be published.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</p></div>';
+        }
+
+    }
+
+    public function render_billing_page() {
+        if (!current_user_can(Terricel_Transit_Trips_Plugin::CAP_MANAGE_TRIPS)) {
+            wp_die(esc_html__('You do not have permission to manage trip billing.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN));
+        }
+
+        echo '<div class="wrap">';
+        echo '<h1>' . esc_html__('Trip Billing', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</h1>';
+
+        if (!empty($_GET['terricel-trip-invoice-sent'])) {
+            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Invoice PDF was emailed and stored on the trip record.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</p></div>';
+        }
+        if (!empty($_GET['terricel-trip-invoice-missing-mileage'])) {
+            echo '<div class="notice notice-error is-dismissible"><p>' . esc_html__('This trip can not be invoiced because mileage is missing.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</p></div>';
+        }
+        if (!empty($_GET['terricel-trip-invoice-missing-recipient'])) {
+            echo '<div class="notice notice-error is-dismissible"><p>' . esc_html__('This trip can not be invoiced because the billing email is missing.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</p></div>';
+        }
+        if (!empty($_GET['terricel-trip-invoice-failed'])) {
+            echo '<div class="notice notice-error is-dismissible"><p>' . esc_html__('The invoice could not be sent. Please check the site mail configuration and try again.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</p></div>';
+        }
+
+        $trips = $this->get_billing_trips();
+        if (empty($trips)) {
+            echo '<div class="notice notice-info inline"><p>' . esc_html__('No completed trips are ready for billing yet.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</p></div>';
+            echo '</div>';
+            return;
+        }
+
+        echo '<table class="widefat striped"><thead><tr>';
+        echo '<th>' . esc_html__('Trip', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</th>';
+        echo '<th>' . esc_html__('Pickup', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</th>';
+        echo '<th>' . esc_html__('Bill To', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</th>';
+        echo '<th>' . esc_html__('Billable Hours', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</th>';
+        echo '<th>' . esc_html__('Mileage', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</th>';
+        echo '<th>' . esc_html__('Invoice Copies', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</th>';
+        echo '<th>' . esc_html__('Action', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</th>';
+        echo '</tr></thead><tbody>';
+
+        foreach ($trips as $trip) {
+            $trip_id = absint($trip->ID);
+            $recipient = $this->get_trip_billing_recipient($trip_id);
+            $totals = $this->get_trip_billing_totals($trip_id);
+            $attachments = $this->get_trip_invoice_attachment_ids($trip_id);
+            echo '<tr>';
+            echo '<td><a href="' . esc_url(get_edit_post_link($trip_id)) . '">' . esc_html(get_the_title($trip_id)) . '</a></td>';
+            echo '<td>' . esc_html($this->format_trip_pickup($trip_id)) . '</td>';
+            echo '<td>' . esc_html($recipient['name']) . '<br><a href="mailto:' . esc_attr($recipient['email']) . '">' . esc_html($recipient['email']) . '</a></td>';
+            echo '<td>' . esc_html($totals['hours_label']) . '</td>';
+            echo '<td>' . esc_html($totals['mileage_label']) . '</td>';
+            echo '<td>' . wp_kses_post($this->get_invoice_attachment_links($attachments)) . '</td>';
+            echo '<td>';
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" onsubmit="return window.confirm(\'' . esc_js(__('Email this invoice PDF to the billing contact?', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)) . '\');">';
+            wp_nonce_field('terricel_trips_send_invoice_' . $trip_id);
+            echo '<input type="hidden" name="action" value="terricel_trips_send_invoice">';
+            echo '<input type="hidden" name="trip_id" value="' . esc_attr($trip_id) . '">';
+            submit_button(__('Email Invoice PDF', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'primary small', 'submit', false);
+            echo '</form>';
+            if ($totals['missing_mileage']) {
+                echo '<p class="description">' . esc_html__('Mileage is missing.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</p>';
+            }
+            echo '</td>';
+            echo '</tr>';
+        }
+
+        echo '</tbody></table>';
+        echo '</div>';
+    }
+
+    public function handle_send_invoice() {
+        if (!current_user_can(Terricel_Transit_Trips_Plugin::CAP_MANAGE_TRIPS)) {
+            wp_die(esc_html__('You do not have permission to send invoices.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN));
+        }
+
+        $trip_id = absint($_POST['trip_id'] ?? 0);
+        check_admin_referer('terricel_trips_send_invoice_' . $trip_id);
+
+        $redirect = admin_url('admin.php?page=terricel-transit-trip-billing');
+        if ($trip_id < 1 || self::TRIP_POST_TYPE !== get_post_type($trip_id)) {
+            wp_safe_redirect(add_query_arg('terricel-trip-invoice-failed', 1, $redirect));
+            exit;
+        }
+
+        $totals = $this->get_trip_billing_totals($trip_id);
+        if ($totals['missing_mileage']) {
+            wp_safe_redirect(add_query_arg('terricel-trip-invoice-missing-mileage', 1, $redirect));
+            exit;
+        }
+
+        $recipient = $this->get_trip_billing_recipient($trip_id);
+        if (empty($recipient['email']) || !is_email($recipient['email'])) {
+            wp_safe_redirect(add_query_arg('terricel-trip-invoice-missing-recipient', 1, $redirect));
+            exit;
+        }
+
+        $attachment_id = $this->create_trip_invoice_pdf_attachment($trip_id, $recipient, $totals);
+        if ($attachment_id < 1) {
+            wp_safe_redirect(add_query_arg('terricel-trip-invoice-failed', 1, $redirect));
+            exit;
+        }
+
+        $pdf_path = get_attached_file($attachment_id);
+        $message = $this->render_trip_email_template(Terricel_Transit_Trips_Plugin::OPTION_EMAIL_INVOICE, $trip_id, $recipient, $totals);
+        $sent = wp_mail(
+            $recipient['email'],
+            sprintf(__('Invoice for %s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), get_the_title($trip_id)),
+            $message,
+            array('Content-Type: text/plain; charset=UTF-8'),
+            $pdf_path && file_exists($pdf_path) ? array($pdf_path) : array()
+        );
+
+        if (!$sent) {
+            wp_delete_attachment($attachment_id, true);
+            wp_safe_redirect(add_query_arg('terricel-trip-invoice-failed', 1, $redirect));
+            exit;
+        }
+
+        $attachments = $this->get_trip_invoice_attachment_ids($trip_id);
+        $attachments[] = $attachment_id;
+        update_post_meta($trip_id, '_terricel_trip_invoice_attachment_ids', array_values(array_unique(array_map('absint', $attachments))));
+        update_post_meta($trip_id, '_terricel_trip_invoice_sent_at', current_time('mysql'));
+        update_post_meta($trip_id, '_terricel_trip_invoice_recipient_email', $recipient['email']);
+
+        wp_safe_redirect(add_query_arg('terricel-trip-invoice-sent', 1, $redirect));
+        exit;
+    }
+
+    public function prevent_deleting_records_with_past_trips($post_id) {
+        $post_type = get_post_type($post_id);
+        if (!in_array($post_type, array(self::GROUP_POST_TYPE, self::ORGANIZATION_POST_TYPE, Terricel_Logistics_Shared_Data::SCHOOL_POST_TYPE), true)) {
+            return;
+        }
+
+        if (!$this->record_has_past_trips($post_id, $post_type)) {
+            return;
+        }
+
+        wp_die(
+            esc_html__('This record can not be deleted because it is associated with one or more past trips.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+            esc_html__('Past Trips Found', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+            array('back_link' => true)
+        );
+    }
+
+    private function record_has_past_trips($post_id, $post_type) {
+        $meta_key = self::GROUP_POST_TYPE === $post_type ? '_terricel_trip_group_id' : '_terricel_trip_school_id';
+
+        $past_trips = get_posts(
+            array(
+                'post_type'      => self::TRIP_POST_TYPE,
+                'post_status'    => array('publish', 'draft', 'pending', 'future', 'private', 'cancelled'),
+                'posts_per_page' => 1,
+                'fields'         => 'ids',
+                'meta_query'     => array(
+                    array(
+                        'key'     => $meta_key,
+                        'value'   => absint($post_id),
+                        'compare' => '=',
+                        'type'    => 'NUMERIC',
+                    ),
+                    array(
+                        'key'     => '_terricel_trip_pickup_date',
+                        'value'   => current_time('Y-m-d'),
+                        'compare' => '<',
+                        'type'    => 'DATE',
+                    ),
+                ),
+            )
+        );
+
+        return !empty($past_trips);
+    }
+
+    private function get_billing_trips() {
+        return get_posts(
+            array(
+                'post_type'      => self::TRIP_POST_TYPE,
+                'post_status'    => 'publish',
+                'posts_per_page' => 500,
+                'orderby'        => 'meta_value',
+                'order'          => 'DESC',
+                'meta_key'       => '_terricel_trip_pickup_date',
+                'meta_query'     => array(
+                    array(
+                        'key'     => '_terricel_trip_pickup_date',
+                        'value'   => current_time('Y-m-d'),
+                        'compare' => '<=',
+                        'type'    => 'DATE',
+                    ),
+                ),
+            )
+        );
+    }
+
+    private function get_trip_billing_recipient($trip_id) {
+        $organization_id = absint(get_post_meta($trip_id, '_terricel_trip_school_id', true));
+        $group_id = absint(get_post_meta($trip_id, '_terricel_trip_group_id', true));
+        $use_group = $this->is_other_organization($organization_id);
+
+        if ($use_group && $group_id > 0) {
+            return array(
+                'name'      => get_the_title($group_id),
+                'email'     => sanitize_email(get_post_meta($group_id, '_terricel_trip_group_advisor_email', true)),
+                'contact'   => $this->get_group_advisor_name($group_id),
+                'address'   => $this->get_group_billing_address($group_id),
+                'source'    => 'group',
+                'source_id' => $group_id,
+            );
+        }
+
+        return array(
+            'name'      => $this->get_school_label($organization_id),
+            'email'     => $this->get_organization_billing_email($organization_id),
+            'contact'   => $this->get_school_label($organization_id),
+            'address'   => $this->get_school_origin_address($organization_id),
+            'source'    => 'organization',
+            'source_id' => $organization_id,
+        );
+    }
+
+    private function get_trip_billing_totals($trip_id) {
+        $assignments = $this->get_trip_assignments($trip_id);
+        $actuals = $this->get_trip_actuals($trip_id);
+        $slot_count = max(1, count($assignments), count($actuals));
+        $hours_total = 0.0;
+        $mileage_total = 0.0;
+        $missing_hours = false;
+        $missing_mileage = false;
+
+        for ($index = 0; $index < $slot_count; $index++) {
+            $row = isset($actuals[$index]) && is_array($actuals[$index]) ? $actuals[$index] : array();
+            $hours = $this->get_billable_hours_for_row($trip_id, $row);
+            if (null === $hours) {
+                $missing_hours = true;
+            } else {
+                $hours_total += $hours;
+            }
+
+            $mileage = $this->get_billable_mileage_for_row($row);
+            if (null === $mileage) {
+                $missing_mileage = true;
+            } else {
+                $mileage_total += $mileage;
+            }
+        }
+
+        return array(
+            'hours'           => round($hours_total, 2),
+            'mileage'         => round($mileage_total, 1),
+            'hours_label'     => $missing_hours ? __('Missing time', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) : number_format_i18n($hours_total, 2),
+            'mileage_label'   => $missing_mileage ? __('Missing mileage', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) : number_format_i18n($mileage_total, 1),
+            'missing_hours'   => $missing_hours,
+            'missing_mileage' => $missing_mileage,
+        );
+    }
+
+    private function get_billable_hours_for_row($trip_id, $row) {
+        $start_mode = get_option(Terricel_Transit_Trips_Plugin::OPTION_BILLABLE_HOURS_START, 'left_garage');
+        $end_mode = get_option(Terricel_Transit_Trips_Plugin::OPTION_BILLABLE_HOURS_END, 'back_garage');
+        $pickup_date = get_post_meta($trip_id, '_terricel_trip_pickup_date', true);
+        $return_date = get_post_meta($trip_id, '_terricel_trip_return_date', true) ?: $pickup_date;
+
+        $start_time = 'pickup' === $start_mode ? get_post_meta($trip_id, '_terricel_trip_pickup_time', true) : ($row['left_yard_time'] ?? '');
+        $end_time = 'returned' === $end_mode ? get_post_meta($trip_id, '_terricel_trip_return_time', true) : ($row['post_trip_time'] ?? '');
+
+        if (!$this->sanitize_time($start_time) || !$this->sanitize_time($end_time) || !$this->sanitize_date($pickup_date) || !$this->sanitize_date($return_date)) {
+            return null;
+        }
+
+        $start_timestamp = strtotime($pickup_date . ' ' . $start_time);
+        $end_timestamp = strtotime($return_date . ' ' . $end_time);
+        if (!$start_timestamp || !$end_timestamp) {
+            return null;
+        }
+
+        while ($end_timestamp < $start_timestamp) {
+            $end_timestamp += DAY_IN_SECONDS;
+        }
+
+        return max(0, ($end_timestamp - $start_timestamp) / HOUR_IN_SECONDS);
+    }
+
+    private function get_billable_mileage_for_row($row) {
+        $start_mode = get_option(Terricel_Transit_Trips_Plugin::OPTION_BILLABLE_MILEAGE_START, 'left_garage');
+        $end_mode = get_option(Terricel_Transit_Trips_Plugin::OPTION_BILLABLE_MILEAGE_END, 'back_garage');
+        $start_key = 'pickup' === $start_mode ? 'departed_mileage' : 'pre_trip_mileage';
+        $end_key = 'returned' === $end_mode ? 'returning_mileage' : 'post_trip_mileage';
+        $start = isset($row[$start_key]) ? $this->sanitize_decimal($row[$start_key]) : '';
+        $end = isset($row[$end_key]) ? $this->sanitize_decimal($row[$end_key]) : '';
+
+        if ('' === $start || '' === $end) {
+            return null;
+        }
+
+        return max(0, (float) $end - (float) $start);
+    }
+
+    private function create_trip_invoice_pdf_attachment($trip_id, $recipient, $totals) {
+        $pdf = $this->build_trip_invoice_pdf($trip_id, $recipient, $totals);
+        if ('' === $pdf) {
+            return 0;
+        }
+
+        $filename = sanitize_file_name('trip-invoice-' . $trip_id . '-' . current_time('Ymd-His') . '.pdf');
+        $upload = wp_upload_bits($filename, null, $pdf);
+        if (!empty($upload['error']) || empty($upload['file'])) {
+            return 0;
+        }
+
+        $attachment_id = wp_insert_attachment(
+            array(
+                'post_mime_type' => 'application/pdf',
+                'post_title'     => preg_replace('/\.pdf$/', '', $filename),
+                'post_content'   => '',
+                'post_status'    => 'inherit',
+            ),
+            $upload['file'],
+            $trip_id
+        );
+
+        return is_wp_error($attachment_id) ? 0 : absint($attachment_id);
+    }
+
+    private function build_trip_invoice_pdf($trip_id, $recipient, $totals) {
+        $lines = array(
+            get_bloginfo('name'),
+            __('Trip Invoice', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+            sprintf(__('Trip: %s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), get_the_title($trip_id)),
+            sprintf(__('Date: %s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_trip_pickup($trip_id)),
+            sprintf(__('Bill To: %s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $recipient['name']),
+            sprintf(__('Billing Email: %s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $recipient['email']),
+            sprintf(__('Billing Address: %s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $recipient['address']),
+            sprintf(__('Group: %s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->get_trip_group_name($trip_id)),
+            sprintf(__('Primary Contact: %s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->get_trip_primary_contact_name($trip_id)),
+            sprintf(__('Location: %s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->get_trip_destination_label($trip_id)),
+            sprintf(__('Driver(s): %s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->get_trip_driver_names($trip_id)),
+            sprintf(__('Billable Hours: %s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $totals['hours_label']),
+            sprintf(__('Total Mileage: %s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $totals['mileage_label']),
+            sprintf(__('Generated: %s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), date_i18n(get_option('date_format') . ' ' . get_option('time_format'), current_time('timestamp'))),
+        );
+
+        return $this->build_simple_text_pdf($lines);
+    }
+
+    private function build_simple_text_pdf($lines) {
+        $content = "BT\n/F1 12 Tf\n50 742 Td\n";
+        $first = true;
+        foreach ($lines as $line) {
+            $wrapped = wordwrap(wp_strip_all_tags((string) $line), 72, "\n", true);
+            foreach (explode("\n", $wrapped) as $wrapped_line) {
+                if (!$first) {
+                    $content .= "0 -18 Td\n";
+                }
+                $content .= '(' . $this->escape_pdf_text($wrapped_line) . ") Tj\n";
+                $first = false;
+            }
+            $content .= "0 -8 Td\n";
+        }
+        $content .= "ET\n";
+
+        $objects = array(
+            1 => '<< /Type /Catalog /Pages 2 0 R >>',
+            2 => '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+            3 => '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+            4 => '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+            5 => "<< /Length " . strlen($content) . " >>\nstream\n" . $content . "endstream",
+        );
+
+        $pdf = "%PDF-1.4\n";
+        $offsets = array(0);
+        foreach ($objects as $id => $object) {
+            $offsets[$id] = strlen($pdf);
+            $pdf .= $id . " 0 obj\n" . $object . "\nendobj\n";
+        }
+
+        $xref_offset = strlen($pdf);
+        $pdf .= "xref\n0 6\n0000000000 65535 f \n";
+        for ($id = 1; $id <= 5; $id++) {
+            $pdf .= sprintf("%010d 00000 n \n", $offsets[$id]);
+        }
+        $pdf .= "trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n" . $xref_offset . "\n%%EOF";
+
+        return $pdf;
+    }
+
+    private function escape_pdf_text($text) {
+        $text = wp_specialchars_decode((string) $text, ENT_QUOTES);
+        $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, get_bloginfo('charset') ? get_bloginfo('charset') : 'UTF-8');
+        $text = str_replace(array('–', '—', '’', '“', '”'), array('-', '-', "'", '"', '"'), $text);
+        $text = preg_replace('/[^\x09\x0A\x0D\x20-\x7E]/', '', $text);
+
+        return str_replace(array('\\', '(', ')'), array('\\\\', '\(', '\)'), $text);
+    }
+
+    private function render_trip_email_template($option, $trip_id, $recipient, $totals) {
+        $template = get_option($option, Terricel_Transit_Trips_Plugin::default_email_template('invoice'));
+        $replacements = array(
+            '{organization_name}'     => $this->get_school_label(absint(get_post_meta($trip_id, '_terricel_trip_school_id', true))),
+            '{group_name}'            => $this->get_trip_group_name($trip_id),
+            '{primary_contact_name}'  => $this->get_trip_primary_contact_name($trip_id),
+            '{location_of_trip}'      => $this->get_trip_destination_label($trip_id),
+            '{date}'                  => $this->format_trip_pickup($trip_id),
+            '{drivers_names}'         => $this->get_trip_driver_names($trip_id),
+            '{billable_hours}'        => $totals['hours_label'],
+            '{total_mileage}'         => $totals['mileage_label'],
+        );
+
+        return strtr(wp_strip_all_tags((string) $template), $replacements);
+    }
+
+    private function get_trip_invoice_attachment_ids($trip_id) {
+        $attachments = get_post_meta($trip_id, '_terricel_trip_invoice_attachment_ids', true);
+        return is_array($attachments) ? array_values(array_filter(array_map('absint', $attachments))) : array();
+    }
+
+    private function get_invoice_attachment_links($attachment_ids) {
+        if (empty($attachment_ids)) {
+            return esc_html__('None', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN);
+        }
+
+        $links = array();
+        foreach ($attachment_ids as $attachment_id) {
+            $url = wp_get_attachment_url($attachment_id);
+            if ($url) {
+                $links[] = '<a href="' . esc_url($url) . '" target="_blank" rel="noopener">' . esc_html(get_the_title($attachment_id)) . '</a>';
+            }
+        }
+
+        return $links ? implode('<br>', $links) : esc_html__('None', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN);
     }
 
     public function send_due_trip_notifications() {
@@ -1951,9 +2499,9 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
                 'selectSchool'      => __('Select an organization before adding a group.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
                 'savingOrganization' => __('Saving organization...', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
                 'organizationSaved' => __('Organization added and selected.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
-                'enterOrganization' => __('Enter an organization name.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+                'enterOrganization' => __('Enter an organization name and email.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
                 'enterGroupName'    => __('Enter a group name.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
-                'requiredGroup'     => __('Enter the group name and primary contact first and last name.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+                'requiredGroup'     => __('Enter the group name, primary contact first and last name, and email.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
                 'addressLoading'    => __('Searching addresses...', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
                 'addressEmpty'      => __('No address suggestions found.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
                 'addressMissingKey' => __('Add a Google Maps API key with Places API (New) or Geocoding API enabled to use lookup.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
@@ -2040,8 +2588,8 @@ if(cancel&&panel){cancel.addEventListener("click",function(){panel.hidden=true;s
 if(conflictConfirm){conflictConfirm.addEventListener("click",function(){setConflictConfirmation(true);if(conflictDialog){conflictDialog.hidden=true;}});}
 if(conflictClose){conflictClose.addEventListener("click",function(){if(conflictDialog){conflictDialog.hidden=true;}});}
 if(conflictDialog){conflictDialog.addEventListener("click",function(event){if(event.target===conflictDialog){conflictDialog.hidden=true;}});}
-if(organizationSave){organizationSave.addEventListener("click",function(){var name=document.getElementById("terricel_trip_new_organization_name");if(!name||!name.value.trim()){setOrganizationMessage(config.strings.enterOrganization,true);if(name){name.focus();}return;}organizationSave.disabled=true;setOrganizationMessage(config.strings.savingOrganization,false);post("terricel_create_trip_organization",{organization_name:name.value,short_name:(document.getElementById("terricel_trip_new_organization_short_name")||{}).value||"",address_1:(document.getElementById("terricel_trip_new_organization_address_1")||{}).value||"",address_2:(document.getElementById("terricel_trip_new_organization_address_2")||{}).value||"",city:(document.getElementById("terricel_trip_new_organization_city")||{}).value||"",state:(document.getElementById("terricel_trip_new_organization_state")||{}).value||"",zip:(document.getElementById("terricel_trip_new_organization_zip")||{}).value||""}).then(function(data){if(data.organization){var row=option(data.organization.id,data.organization.label);row.selected=true;school.appendChild(row);school.value=String(data.organization.id);loadGroups();}clearOrganizationPanel();if(organizationPanel){organizationPanel.hidden=true;}setOrganizationMessage(config.strings.organizationSaved,false);requestEstimate(true,true);syncWorkflow();}).catch(function(error){setOrganizationMessage(error.message,true);}).finally(function(){organizationSave.disabled=false;});});}
-if(save){save.addEventListener("click",function(){var name=document.getElementById("terricel_trip_new_group_name");var first=document.getElementById("terricel_trip_new_group_advisor_first_name");var last=document.getElementById("terricel_trip_new_group_advisor_last_name");var required=[name,first,last];var missing=required.find(function(input){return !input||!input.value.trim();});if(missing){setMessage(config.strings.requiredGroup,true);missing.focus();return;}if(parseInt(school.value,10)<1){setMessage(config.strings.selectSchool,true);return;}save.disabled=true;setMessage(config.strings.saving,false);post("terricel_create_trip_group",{school_id:school.value,group_name:name.value,advisor_first_name:first.value,advisor_last_name:last.value,advisor_main_phone:(document.getElementById("terricel_trip_new_group_advisor_main_phone")||{}).value||"",advisor_main_phone_extension:(document.getElementById("terricel_trip_new_group_advisor_main_phone_extension")||{}).value||"",advisor_emergency_phone:(document.getElementById("terricel_trip_new_group_advisor_emergency_phone")||{}).value||"",advisor_email:(document.getElementById("terricel_trip_new_group_advisor_email")||{}).value||""}).then(function(data){if(data.group){var row=option(data.group.id,data.group.label);row.selected=true;group.appendChild(row);group.value=String(data.group.id);}clearPanel();if(panel){panel.hidden=true;}setMessage(config.strings.saved,false);syncWorkflow();}).catch(function(error){setMessage(error.message,true);}).finally(function(){save.disabled=false;});});}
+if(organizationSave){organizationSave.addEventListener("click",function(){var name=document.getElementById("terricel_trip_new_organization_name");var email=document.getElementById("terricel_trip_new_organization_email");if(!name||!name.value.trim()||!email||!email.value.trim()){setOrganizationMessage(config.strings.enterOrganization,true);var focusTarget=name&&name.value.trim()?email:name;if(focusTarget){focusTarget.focus();}return;}organizationSave.disabled=true;setOrganizationMessage(config.strings.savingOrganization,false);post("terricel_create_trip_organization",{organization_name:name.value,short_name:(document.getElementById("terricel_trip_new_organization_short_name")||{}).value||"",address_1:(document.getElementById("terricel_trip_new_organization_address_1")||{}).value||"",address_2:(document.getElementById("terricel_trip_new_organization_address_2")||{}).value||"",city:(document.getElementById("terricel_trip_new_organization_city")||{}).value||"",state:(document.getElementById("terricel_trip_new_organization_state")||{}).value||"",zip:(document.getElementById("terricel_trip_new_organization_zip")||{}).value||"",email:email.value||""}).then(function(data){if(data.organization){var row=option(data.organization.id,data.organization.label);row.selected=true;school.appendChild(row);school.value=String(data.organization.id);loadGroups();}clearOrganizationPanel();if(organizationPanel){organizationPanel.hidden=true;}setOrganizationMessage(config.strings.organizationSaved,false);requestEstimate(true,true);syncWorkflow();}).catch(function(error){setOrganizationMessage(error.message,true);}).finally(function(){organizationSave.disabled=false;});});}
+if(save){save.addEventListener("click",function(){var name=document.getElementById("terricel_trip_new_group_name");var first=document.getElementById("terricel_trip_new_group_advisor_first_name");var last=document.getElementById("terricel_trip_new_group_advisor_last_name");var email=document.getElementById("terricel_trip_new_group_advisor_email");var required=[name,first,last,email];var missing=required.find(function(input){return !input||!input.value.trim();});if(missing){setMessage(config.strings.requiredGroup,true);missing.focus();return;}if(parseInt(school.value,10)<1){setMessage(config.strings.selectSchool,true);return;}save.disabled=true;setMessage(config.strings.saving,false);post("terricel_create_trip_group",{school_id:school.value,group_name:name.value,advisor_first_name:first.value,advisor_last_name:last.value,advisor_main_phone:(document.getElementById("terricel_trip_new_group_advisor_main_phone")||{}).value||"",advisor_main_phone_extension:(document.getElementById("terricel_trip_new_group_advisor_main_phone_extension")||{}).value||"",advisor_emergency_phone:(document.getElementById("terricel_trip_new_group_advisor_emergency_phone")||{}).value||"",advisor_email:email.value||"",billing_address_1:(document.getElementById("terricel_trip_new_group_billing_address_1")||{}).value||"",billing_address_2:(document.getElementById("terricel_trip_new_group_billing_address_2")||{}).value||"",billing_city:(document.getElementById("terricel_trip_new_group_billing_city")||{}).value||"",billing_state:(document.getElementById("terricel_trip_new_group_billing_state")||{}).value||"",billing_zip:(document.getElementById("terricel_trip_new_group_billing_zip")||{}).value||""}).then(function(data){if(data.group){var row=option(data.group.id,data.group.label);row.selected=true;group.appendChild(row);group.value=String(data.group.id);}clearPanel();if(panel){panel.hidden=true;}setMessage(config.strings.saved,false);syncWorkflow();}).catch(function(error){setMessage(error.message,true);}).finally(function(){save.disabled=false;});});}
 syncTimeInputs();syncDates();syncBusSlots();initEstimateHelp();initAddressLookup();if(destination&&destination.value.trim()&&parseInt(school.value,10)>0){requestEstimate(true,false);}refreshBusAvailability();checkDriverConflicts();syncWorkflow();
 });
 }(__CONFIG__));
@@ -2283,7 +2831,7 @@ JS;
             $extra .= ' inputmode="' . esc_attr($inputmode) . '"';
         }
         if ($required) {
-            $extra .= ' aria-required="true" data-terricel-required="1"';
+            $extra .= ' required aria-required="true" data-terricel-required="1"';
         }
 
         echo '<p>';
@@ -2317,6 +2865,7 @@ JS;
         $this->render_text_field('terricel_trip_new_organization_city', __('City', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '', 'text');
         $this->render_text_field('terricel_trip_new_organization_state', __('State', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '', 'text');
         $this->render_text_field('terricel_trip_new_organization_zip', __('ZIP', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '', 'text');
+        $this->render_text_field('terricel_trip_new_organization_email', __('Email', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '', 'email', '', true);
         echo '</div>';
         echo '<p class="terricel-inline-group-actions"><button type="button" class="button button-primary" id="terricel_trip_save_organization">' . esc_html__('Save Organization', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</button> <button type="button" class="button" id="terricel_trip_cancel_organization">' . esc_html__('Cancel', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</button> <span id="terricel_trip_organization_message" class="description"></span></p>';
         echo '</div></div>';
@@ -2336,7 +2885,12 @@ JS;
         $this->render_text_field('terricel_trip_new_group_advisor_main_phone', __('Main Phone', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '', 'tel');
         $this->render_text_field('terricel_trip_new_group_advisor_main_phone_extension', __('Extension', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '', 'text', 'numeric');
         $this->render_text_field('terricel_trip_new_group_advisor_emergency_phone', __('Emergency Phone', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '', 'tel');
-        $this->render_text_field('terricel_trip_new_group_advisor_email', __('Email', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '', 'email');
+        $this->render_text_field('terricel_trip_new_group_advisor_email', __('Email', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '', 'email', '', true);
+        $this->render_text_field('terricel_trip_new_group_billing_address_1', __('Billing Address 1', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '', 'text');
+        $this->render_text_field('terricel_trip_new_group_billing_address_2', __('Billing Address 2', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '', 'text');
+        $this->render_text_field('terricel_trip_new_group_billing_city', __('Billing City', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '', 'text');
+        $this->render_text_field('terricel_trip_new_group_billing_state', __('Billing State', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '', 'text');
+        $this->render_text_field('terricel_trip_new_group_billing_zip', __('Billing ZIP', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '', 'text');
         echo '</div>';
         echo '<p class="terricel-inline-group-actions"><button type="button" class="button button-primary" id="terricel_trip_save_group">' . esc_html__('Save Group', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</button> <button type="button" class="button" id="terricel_trip_cancel_group">' . esc_html__('Cancel', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</button> <span id="terricel_trip_group_message" class="description"></span></p>';
         echo '</div></div>';
@@ -2687,11 +3241,12 @@ JS;
         $group_name = sanitize_text_field(wp_unslash($_POST['group_name'] ?? ''));
         $advisor_first_name = $this->sanitize_person_name($_POST['advisor_first_name'] ?? '');
         $advisor_last_name = $this->sanitize_person_name($_POST['advisor_last_name'] ?? '');
+        $advisor_email = sanitize_email(wp_unslash($_POST['advisor_email'] ?? ''));
         if (!$this->is_valid_trip_organization($school_id)) {
             wp_send_json_error(array('message' => __('Select an organization before adding a group.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)), 400);
         }
-        if ('' === $group_name || '' === $advisor_first_name || '' === $advisor_last_name) {
-            wp_send_json_error(array('message' => __('Enter the group name and primary contact first and last name.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)), 400);
+        if ('' === $group_name || '' === $advisor_first_name || '' === $advisor_last_name || !is_email($advisor_email)) {
+            wp_send_json_error(array('message' => __('Enter the group name, primary contact first and last name, and a valid email.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)), 400);
         }
 
         $group_id = wp_insert_post(
@@ -2712,7 +3267,12 @@ JS;
         update_post_meta($group_id, '_terricel_trip_group_advisor_main_phone', $this->sanitize_phone($_POST['advisor_main_phone'] ?? ''));
         update_post_meta($group_id, '_terricel_trip_group_advisor_main_phone_extension', $this->sanitize_extension($_POST['advisor_main_phone_extension'] ?? ''));
         update_post_meta($group_id, '_terricel_trip_group_advisor_emergency_phone', $this->sanitize_phone($_POST['advisor_emergency_phone'] ?? ''));
-        update_post_meta($group_id, '_terricel_trip_group_advisor_email', sanitize_email(wp_unslash($_POST['advisor_email'] ?? '')));
+        update_post_meta($group_id, '_terricel_trip_group_advisor_email', $advisor_email);
+        update_post_meta($group_id, '_terricel_trip_group_billing_address_1', sanitize_text_field(wp_unslash($_POST['billing_address_1'] ?? '')));
+        update_post_meta($group_id, '_terricel_trip_group_billing_address_2', sanitize_text_field(wp_unslash($_POST['billing_address_2'] ?? '')));
+        update_post_meta($group_id, '_terricel_trip_group_billing_city', sanitize_text_field(wp_unslash($_POST['billing_city'] ?? '')));
+        update_post_meta($group_id, '_terricel_trip_group_billing_state', sanitize_text_field(wp_unslash($_POST['billing_state'] ?? '')));
+        update_post_meta($group_id, '_terricel_trip_group_billing_zip', sanitize_text_field(wp_unslash($_POST['billing_zip'] ?? '')));
 
         wp_send_json_success(
             array(
@@ -2731,8 +3291,9 @@ JS;
 
         check_ajax_referer('terricel_trip_group_ajax', 'nonce');
         $name = sanitize_text_field(wp_unslash($_POST['organization_name'] ?? ''));
-        if ('' === $name) {
-            wp_send_json_error(array('message' => __('Enter an organization name.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)), 400);
+        $email = sanitize_email(wp_unslash($_POST['email'] ?? ''));
+        if ('' === $name || !is_email($email)) {
+            wp_send_json_error(array('message' => __('Enter an organization name and valid email.', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)), 400);
         }
 
         $organization_id = wp_insert_post(
@@ -2753,6 +3314,7 @@ JS;
         update_post_meta($organization_id, '_terricel_trip_organization_city', sanitize_text_field(wp_unslash($_POST['city'] ?? '')));
         update_post_meta($organization_id, '_terricel_trip_organization_state', sanitize_text_field(wp_unslash($_POST['state'] ?? '')));
         update_post_meta($organization_id, '_terricel_trip_organization_zip', sanitize_text_field(wp_unslash($_POST['zip'] ?? '')));
+        update_post_meta($organization_id, '_terricel_trip_organization_email', $email);
 
         wp_send_json_success(
             array(
@@ -3100,6 +3662,72 @@ JS;
         return $short_name ? $short_name : get_the_title($organization_id);
     }
 
+    private function is_other_organization($organization_id) {
+        if ($organization_id < 1 || self::ORGANIZATION_POST_TYPE !== get_post_type($organization_id)) {
+            return false;
+        }
+
+        if (get_post_meta($organization_id, '_terricel_trip_organization_is_other', true)) {
+            return true;
+        }
+
+        return 0 === strcasecmp(trim((string) get_the_title($organization_id)), 'Other');
+    }
+
+    private function get_organization_billing_email($organization_id) {
+        if (self::ORGANIZATION_POST_TYPE === get_post_type($organization_id)) {
+            return sanitize_email(get_post_meta($organization_id, '_terricel_trip_organization_email', true));
+        }
+
+        return sanitize_email(get_post_meta($organization_id, '_terricel_school_email', true));
+    }
+
+    private function get_group_billing_address($group_id) {
+        $parts = array(
+            get_post_meta($group_id, '_terricel_trip_group_billing_address_1', true),
+            get_post_meta($group_id, '_terricel_trip_group_billing_address_2', true),
+            trim(
+                implode(
+                    ' ',
+                    array_filter(
+                        array(
+                            get_post_meta($group_id, '_terricel_trip_group_billing_city', true),
+                            get_post_meta($group_id, '_terricel_trip_group_billing_state', true),
+                            get_post_meta($group_id, '_terricel_trip_group_billing_zip', true),
+                        ),
+                        'strlen'
+                    )
+                )
+            ),
+        );
+
+        $parts = array_filter(array_map('trim', $parts), 'strlen');
+        return $parts ? implode(', ', $parts) : '';
+    }
+
+    private function get_trip_group_name($trip_id) {
+        $group_id = absint(get_post_meta($trip_id, '_terricel_trip_group_id', true));
+        return $group_id > 0 ? get_the_title($group_id) : __('Not set', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN);
+    }
+
+    private function get_trip_primary_contact_name($trip_id) {
+        $group_id = absint(get_post_meta($trip_id, '_terricel_trip_group_id', true));
+        return $group_id > 0 ? $this->get_group_advisor_name($group_id) : __('Not set', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN);
+    }
+
+    private function get_trip_driver_names($trip_id) {
+        $names = array();
+        foreach ($this->get_trip_assignments($trip_id) as $assignment) {
+            $driver_id = absint($assignment['driver_id'] ?? 0);
+            if ($driver_id > 0) {
+                $names[] = get_the_title($driver_id);
+            }
+        }
+
+        $names = array_values(array_unique(array_filter($names)));
+        return $names ? implode(', ', $names) : __('No drivers assigned', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN);
+    }
+
     private function get_group_advisor_name($post_id) {
         $first_name = get_post_meta($post_id, '_terricel_trip_group_advisor_first_name', true);
         $last_name = get_post_meta($post_id, '_terricel_trip_group_advisor_last_name', true);
@@ -3170,6 +3798,14 @@ JS;
         }
 
         return current_user_can(Terricel_Transit_Trips_Plugin::CAP_MANAGE_TRIPS);
+    }
+
+    private function maybe_flag_required_email_missing($post_id, $email, $notice_key) {
+        if (is_email($email)) {
+            return;
+        }
+
+        set_transient($notice_key . '_' . get_current_user_id(), absint($post_id), 60);
     }
 
     private function sanitize_date($value) {

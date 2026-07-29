@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0 - 2026-07-29
+
+- Moved Organizations access out of the Operations Dashboard submenu and into the parent Configuration page.
+- Added a Trip Billing page for completed trips with manual invoice confirmation, mileage-required blocking, invoice PDF emailing, and stored invoice PDF copies on trip records.
+- Added Group billing address fields for Other-organization billing, automatic creation of an Other organization, and Trips settings for invoice/confirmation/cancellation email templates plus billable hour and mileage rules.
+- Required emails on Groups and Organizations, while keeping the Other organization exempt, and blocked deletion of Groups, Organizations, and Schools that are tied to past trips.
+- Locked each Group to its first assigned Organization so the relationship can not be changed later, including by administrators.
+
 ## 0.2.27 - 2026-07-29
 
 - Fixed Groups and Organizations list Back to Trips buttons so they always return to the Trips list instead of following the latest admin referrer.

@@ -19,6 +19,13 @@ class Terricel_Transit_Trips_Plugin {
     const OPTION_UNASSIGNED_NOTICE_HOURS = 'terricel_trips_unassigned_notice_hours';
     const OPTION_DRIVER_REMINDER_HOURS = 'terricel_trips_driver_reminder_hours';
     const OPTION_GOOGLE_MAPS_DIAGNOSTICS = 'terricel_trips_google_maps_diagnostics';
+    const OPTION_BILLABLE_HOURS_START = 'terricel_trips_billable_hours_start';
+    const OPTION_BILLABLE_HOURS_END = 'terricel_trips_billable_hours_end';
+    const OPTION_BILLABLE_MILEAGE_START = 'terricel_trips_billable_mileage_start';
+    const OPTION_BILLABLE_MILEAGE_END = 'terricel_trips_billable_mileage_end';
+    const OPTION_EMAIL_TRIP_CONFIRMATION = 'terricel_trips_email_trip_confirmation';
+    const OPTION_EMAIL_TRIP_CANCELLATION = 'terricel_trips_email_trip_cancellation';
+    const OPTION_EMAIL_INVOICE = 'terricel_trips_email_invoice';
     const CRON_HOOK = 'terricel_transit_trips_notifications';
 
     private $module;
@@ -60,6 +67,7 @@ class Terricel_Transit_Trips_Plugin {
         require_once TERRICEL_TRANSIT_TRIPS_PATH . 'includes/class-terricel-transit-trips-module.php';
         $this->module = new Terricel_Transit_Trips_Module($this);
 
+        self::ensure_default_trip_options();
         self::ensure_roles();
         $this->ensure_cron_scheduled();
     }
@@ -94,10 +102,42 @@ class Terricel_Transit_Trips_Plugin {
         if (!get_option(self::OPTION_DRIVER_REMINDER_HOURS, null)) {
             update_option(self::OPTION_DRIVER_REMINDER_HOURS, 48);
         }
+
+        self::ensure_default_trip_options();
     }
 
     public static function deactivate() {
         wp_clear_scheduled_hook(self::CRON_HOOK);
+    }
+
+    public static function ensure_default_trip_options() {
+        $defaults = array(
+            self::OPTION_BILLABLE_HOURS_START   => 'left_garage',
+            self::OPTION_BILLABLE_HOURS_END     => 'back_garage',
+            self::OPTION_BILLABLE_MILEAGE_START => 'left_garage',
+            self::OPTION_BILLABLE_MILEAGE_END   => 'back_garage',
+            self::OPTION_EMAIL_TRIP_CONFIRMATION => self::default_email_template('confirmation'),
+            self::OPTION_EMAIL_TRIP_CANCELLATION => self::default_email_template('cancellation'),
+            self::OPTION_EMAIL_INVOICE           => self::default_email_template('invoice'),
+        );
+
+        foreach ($defaults as $option => $value) {
+            if (null === get_option($option, null)) {
+                update_option($option, $value);
+            }
+        }
+    }
+
+    public static function default_email_template($type) {
+        if ('cancellation' === $type) {
+            return "Hello {primary_contact_name},\n\nThis message confirms that the trip for {group_name} to {location_of_trip} on {date} has been cancelled.\n\nOrganization: {organization_name}\nDriver(s): {drivers_names}\n\nPlease contact us with any questions.\n\nThank you,\nTerricel Transit";
+        }
+
+        if ('invoice' === $type) {
+            return "Hello {primary_contact_name},\n\nPlease find the attached invoice PDF for {group_name}'s trip to {location_of_trip} on {date}.\n\nOrganization: {organization_name}\nBillable hours: {billable_hours}\nTotal mileage: {total_mileage}\nDriver(s): {drivers_names}\n\nThank you,\nTerricel Transit";
+        }
+
+        return "Hello {primary_contact_name},\n\nThis message confirms the trip for {group_name} to {location_of_trip} on {date}.\n\nOrganization: {organization_name}\nDriver(s): {drivers_names}\n\nThank you,\nTerricel Transit";
     }
 
     public static function ensure_roles() {
@@ -312,6 +352,10 @@ class Terricel_Transit_Trips_Plugin {
 
         $unassigned_hours = absint(get_option(self::OPTION_UNASSIGNED_NOTICE_HOURS, 72));
         $driver_hours = absint(get_option(self::OPTION_DRIVER_REMINDER_HOURS, 48));
+        $billable_hours_start = get_option(self::OPTION_BILLABLE_HOURS_START, 'left_garage');
+        $billable_hours_end = get_option(self::OPTION_BILLABLE_HOURS_END, 'back_garage');
+        $billable_mileage_start = get_option(self::OPTION_BILLABLE_MILEAGE_START, 'left_garage');
+        $billable_mileage_end = get_option(self::OPTION_BILLABLE_MILEAGE_END, 'back_garage');
 
         echo '<h2>' . esc_html__('Trip Settings', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</h2>';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
@@ -323,8 +367,45 @@ class Terricel_Transit_Trips_Plugin {
         echo '<tr><th scope="row"><label for="terricel_trips_driver_reminder_hours">' . esc_html__('Driver Trip Reminder', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</label></th>';
         echo '<td><input class="small-text" type="number" min="1" max="720" step="1" id="terricel_trips_driver_reminder_hours" name="terricel_trips_driver_reminder_hours" value="' . esc_attr($driver_hours) . '"> ' . esc_html__('hours before pickup', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</td></tr>';
         echo '</tbody></table>';
+
+        echo '<h3>' . esc_html__('Billing Rules', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</h3>';
+        echo '<table class="form-table" role="presentation"><tbody>';
+        echo '<tr><th scope="row"><label for="terricel_trips_billable_hours_start">' . esc_html__('Billable Hours Start', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</label></th><td>';
+        $this->render_settings_select('terricel_trips_billable_hours_start', $billable_hours_start, array('left_garage' => __('Time left garage', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'pickup' => __('Pickup time', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)));
+        echo '</td></tr>';
+        echo '<tr><th scope="row"><label for="terricel_trips_billable_hours_end">' . esc_html__('Billable Hours End', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</label></th><td>';
+        $this->render_settings_select('terricel_trips_billable_hours_end', $billable_hours_end, array('returned' => __('Return time', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'back_garage' => __('Time back at garage', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)));
+        echo '</td></tr>';
+        echo '<tr><th scope="row"><label for="terricel_trips_billable_mileage_start">' . esc_html__('Billable Mileage Start', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</label></th><td>';
+        $this->render_settings_select('terricel_trips_billable_mileage_start', $billable_mileage_start, array('left_garage' => __('Mileage at garage departure', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'pickup' => __('Mileage at pickup', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)));
+        echo '</td></tr>';
+        echo '<tr><th scope="row"><label for="terricel_trips_billable_mileage_end">' . esc_html__('Billable Mileage End', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</label></th><td>';
+        $this->render_settings_select('terricel_trips_billable_mileage_end', $billable_mileage_end, array('returned' => __('Mileage when returned', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 'back_garage' => __('Mileage back at garage', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN)));
+        echo '</td></tr>';
+        echo '</tbody></table>';
+
+        echo '<h3>' . esc_html__('Email Messages', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</h3>';
+        echo '<p class="description">' . esc_html__('Available placeholders: {organization_name}, {group_name}, {primary_contact_name}, {location_of_trip}, {date}, {drivers_names}, {billable_hours}, {total_mileage}', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN) . '</p>';
+        echo '<table class="form-table" role="presentation"><tbody>';
+        $this->render_template_row('terricel_trips_email_trip_confirmation', __('Trip Confirmation', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), get_option(self::OPTION_EMAIL_TRIP_CONFIRMATION, self::default_email_template('confirmation')));
+        $this->render_template_row('terricel_trips_email_trip_cancellation', __('Trip Cancellation', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), get_option(self::OPTION_EMAIL_TRIP_CANCELLATION, self::default_email_template('cancellation')));
+        $this->render_template_row('terricel_trips_email_invoice', __('Invoice with PDF', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), get_option(self::OPTION_EMAIL_INVOICE, self::default_email_template('invoice')));
+        echo '</tbody></table>';
         submit_button(__('Save Trip Settings', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN));
         echo '</form>';
+    }
+
+    private function render_settings_select($name, $selected, $options) {
+        echo '<select id="' . esc_attr($name) . '" name="' . esc_attr($name) . '">';
+        foreach ($options as $value => $label) {
+            echo '<option value="' . esc_attr($value) . '"' . selected($selected, $value, false) . '>' . esc_html($label) . '</option>';
+        }
+        echo '</select>';
+    }
+
+    private function render_template_row($name, $label, $value) {
+        echo '<tr><th scope="row"><label for="' . esc_attr($name) . '">' . esc_html($label) . '</label></th>';
+        echo '<td><textarea class="large-text" rows="8" id="' . esc_attr($name) . '" name="' . esc_attr($name) . '">' . esc_textarea($value) . '</textarea></td></tr>';
     }
 
     public function render_integrations_tab() {
@@ -387,9 +468,21 @@ class Terricel_Transit_Trips_Plugin {
         check_admin_referer('terricel_trips_save_trip_settings');
         update_option(self::OPTION_UNASSIGNED_NOTICE_HOURS, min(720, max(1, absint($_POST['terricel_trips_unassigned_notice_hours'] ?? 72))));
         update_option(self::OPTION_DRIVER_REMINDER_HOURS, min(720, max(1, absint($_POST['terricel_trips_driver_reminder_hours'] ?? 48))));
+        update_option(self::OPTION_BILLABLE_HOURS_START, $this->sanitize_choice($_POST['terricel_trips_billable_hours_start'] ?? '', array('left_garage', 'pickup'), 'left_garage'));
+        update_option(self::OPTION_BILLABLE_HOURS_END, $this->sanitize_choice($_POST['terricel_trips_billable_hours_end'] ?? '', array('returned', 'back_garage'), 'back_garage'));
+        update_option(self::OPTION_BILLABLE_MILEAGE_START, $this->sanitize_choice($_POST['terricel_trips_billable_mileage_start'] ?? '', array('left_garage', 'pickup'), 'left_garage'));
+        update_option(self::OPTION_BILLABLE_MILEAGE_END, $this->sanitize_choice($_POST['terricel_trips_billable_mileage_end'] ?? '', array('returned', 'back_garage'), 'back_garage'));
+        update_option(self::OPTION_EMAIL_TRIP_CONFIRMATION, wp_kses_post(wp_unslash($_POST['terricel_trips_email_trip_confirmation'] ?? self::default_email_template('confirmation'))));
+        update_option(self::OPTION_EMAIL_TRIP_CANCELLATION, wp_kses_post(wp_unslash($_POST['terricel_trips_email_trip_cancellation'] ?? self::default_email_template('cancellation'))));
+        update_option(self::OPTION_EMAIL_INVOICE, wp_kses_post(wp_unslash($_POST['terricel_trips_email_invoice'] ?? self::default_email_template('invoice'))));
 
         wp_safe_redirect(admin_url('admin.php?page=terricel-transit-settings&tab=trips&trip-settings-updated=1'));
         exit;
+    }
+
+    private function sanitize_choice($value, $allowed, $fallback) {
+        $value = sanitize_key(wp_unslash($value));
+        return in_array($value, $allowed, true) ? $value : $fallback;
     }
 
     public function save_integrations() {
