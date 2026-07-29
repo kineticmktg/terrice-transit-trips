@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.27 - 2026-07-29
+
+- Fixed Groups and Organizations list Back to Trips buttons so they always return to the Trips list instead of following the latest admin referrer.
+
 ## 0.2.26 - 2026-07-29
 
 - Fixed the Organizations admin page by shortening the internal Organization post type key to stay within WordPress post type limits.

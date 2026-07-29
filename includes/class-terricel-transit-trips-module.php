@@ -2235,9 +2235,7 @@ JS;
             return;
         }
 
-        $trips_url = function_exists('terricel_logistics_get_dynamic_admin_back_url')
-            ? terricel_logistics_get_dynamic_admin_back_url(admin_url('edit.php?post_type=' . self::TRIP_POST_TYPE))
-            : admin_url('edit.php?post_type=' . self::TRIP_POST_TYPE);
+        $trips_url = admin_url('edit.php?post_type=' . self::TRIP_POST_TYPE);
         $groups_url = admin_url('edit.php?post_type=' . self::GROUP_POST_TYPE);
         $organizations_url = admin_url('edit.php?post_type=' . self::ORGANIZATION_POST_TYPE);
         echo '<script>';
