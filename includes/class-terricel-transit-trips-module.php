@@ -987,6 +987,10 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
                 $trips,
                 function($trip) use ($filters, $search) {
                     $trip_id = absint($trip->ID);
+                    if (!$this->trip_has_ended_for_billing($trip_id)) {
+                        return false;
+                    }
+
                     if ($this->get_trip_invoice_status($trip_id) !== $filters['status']) {
                         return false;
                     }
@@ -1048,6 +1052,15 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         }
 
         return get_post_meta($trip_id, '_terricel_trip_pickup_date', true);
+    }
+
+    private function trip_has_ended_for_billing($trip_id) {
+        $return_timestamp = $this->get_trip_return_timestamp($trip_id);
+        if (!$return_timestamp) {
+            return false;
+        }
+
+        return $return_timestamp <= current_time('timestamp');
     }
 
     private function get_billing_status_counts() {

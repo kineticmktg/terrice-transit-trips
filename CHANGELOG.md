@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.3 - 2026-07-29
+
+- Updated Trip Billing eligibility so trips appear only after the saved anticipated return date and time has passed.
+- Confirmed billing actions show the requested View PDF Invoice, Email Invoice, Cancel Invoice, and Update Mileage controls based on invoice readiness.
+
 ## 0.3.2 - 2026-07-29
 
 - Expanded Trip Billing into a searchable, filterable, sortable past-trip list with Non Invoiced, Invoiced, and Voided views.
