@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.12 - 2026-07-29
+
+- Added invoice history dropdowns to Trip Billing with timestamped modified, emailed, canceled, and reinstated events plus user attribution.
+- Added a Reinstate Invoice action for canceled invoices and removed Update Mileage actions from the billing table.
+- Replaced the Trips list Last Modified column with a History dropdown showing who created and last modified each trip record.
+- Improved Cancel Invoice confirmation feedback when CANCEL is not typed exactly.
+
 ## 0.3.11 - 2026-07-29
 
 - Added trip billing capabilities for viewing billing, editing billing, and sending invoices, with defaults for Trip Coordinator, Dispatcher, and Admin roles.
