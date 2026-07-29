@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.8 - 2026-07-29
+
+- Refined Trip Sheet PDF layout, removed page labels, adjusted top field spacing, added destination address and printed-by footer, and left Field Trip Log time fields blank.
+- Calculated Leave Garage on trip sheets from the scheduled pickup time minus 15 minutes and Google travel time from the garage to the pickup location.
+
 ## 0.3.7 - 2026-07-29
 
 - Added an editable Pickup Location step before Destination & Estimates, auto-filled from the selected organization address when available.

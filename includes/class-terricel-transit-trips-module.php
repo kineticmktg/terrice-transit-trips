@@ -1498,22 +1498,21 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
 
         $this->pdf_rect($ops, $x, 735, $w, 30);
         $this->pdf_text($ops, 205, 745, __('Bus Field Trip Request', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 20, true);
-        $this->pdf_text($ops, 492, 745, sprintf(__('Page %1$s of %2$s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $index + 1, $page_count), 8, false);
 
         $this->trip_sheet_field($ops, $x, 690, 236, 28, __('Day/Date:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_trip_sheet_date($trip_id));
-        $this->trip_sheet_field($ops, $x + 236, 690, 236, 28, __('Number of Buses Needed:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), (string) max(1, absint(get_post_meta($trip_id, '_terricel_trip_buses_needed', true))));
-        $this->trip_sheet_field($ops, $x, 645, 157, 28, __('Leave Garage:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_time_display($actual['left_yard_time'] ?? ''));
-        $this->trip_sheet_field($ops, $x + 157, 645, 158, 28, __('Leave School:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_time_display(get_post_meta($trip_id, '_terricel_trip_pickup_time', true)));
-        $this->trip_sheet_field($ops, $x + 315, 645, 157, 28, __('Time Returning:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_time_display(get_post_meta($trip_id, '_terricel_trip_return_time', true)));
-        $this->trip_sheet_field($ops, $x, 600, 236, 28, __('Pre-Trip Miles:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $actual['pre_trip_mileage'] ?? '', true);
-        $this->trip_sheet_field($ops, $x + 236, 600, 236, 28, __('Post Trip Miles:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $actual['post_trip_mileage'] ?? '', true);
+        $this->trip_sheet_field($ops, $x + 236, 690, 236, 28, __('Number of Buses Needed:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), (string) max(1, absint(get_post_meta($trip_id, '_terricel_trip_buses_needed', true))), false, 128, 8);
+        $this->trip_sheet_field($ops, $x, 645, 157, 28, __('Leave Garage:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->get_trip_sheet_leave_garage_time($trip_id), false, 104);
+        $this->trip_sheet_field($ops, $x + 157, 645, 158, 28, __('Leave School:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_time_display(get_post_meta($trip_id, '_terricel_trip_pickup_time', true)), false, 120);
+        $this->trip_sheet_field($ops, $x + 315, 645, 157, 28, __('Time Returning:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_time_display(get_post_meta($trip_id, '_terricel_trip_return_time', true)), false, 128);
+        $this->trip_sheet_field($ops, $x, 600, 236, 28, __('Pre-Trip Miles:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $actual['pre_trip_mileage'] ?? '');
+        $this->trip_sheet_field($ops, $x + 236, 600, 236, 28, __('Post Trip Miles:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $actual['post_trip_mileage'] ?? '');
         $this->trip_sheet_large_field($ops, $x, 525, $w, 48, __('Trip Origin (School):', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->get_trip_sheet_origin_label($school_id, $trip_id));
-        $this->trip_sheet_large_field($ops, $x, 477, $w, 48, __('Trip Destination:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->get_trip_destination_label($trip_id));
+        $this->trip_sheet_large_field($ops, $x, 477, $w, 48, __('Trip Destination:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->get_trip_sheet_destination_label($trip_id));
         $this->trip_sheet_large_field($ops, $x, 429, $w, 48, __('Event:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), implode(' | ', $event_parts));
 
         $this->pdf_rect($ops, $x, 380, $w, 34);
         $this->pdf_text($ops, 230, 391, __('Field Trip Log', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), 20, true);
-        $this->pdf_text($ops, 95, 360, '*ATTENTION- IF GOING OUT OF STATE, DO SEPERATE MILEAGE FOR EACH STATE*', 12, true);
+        $this->pdf_text($ops, 88, 360, '*ATTENTION- IF GOING OUT OF STATE, DO SEPERATE MILEAGE FOR EACH STATE*', 10, true);
 
         $this->pdf_rect($ops, $x, 220, $w, 130);
         $this->pdf_line($ops, $x + 236, 220, $x + 236, 350);
@@ -1525,18 +1524,19 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         $driver_id = absint($assignment['driver_id'] ?? 0);
         $this->trip_sheet_log_cell($ops, $x, 324, 236, 26, __('Bus Driver:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $driver_id ? get_the_title($driver_id) : '');
         $this->trip_sheet_log_cell($ops, $x + 236, 324, 236, 26, __('Bus Number:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->get_trip_sheet_bus_number($bus_id));
-        $this->trip_sheet_log_cell($ops, $x, 298, 236, 26, __('Depart Time from School:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_time_display(($actual['departed_time'] ?? '') ?: get_post_meta($trip_id, '_terricel_trip_pickup_time', true)));
+        $this->trip_sheet_log_cell($ops, $x, 298, 236, 26, __('Depart Time from School:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '');
         $this->trip_sheet_log_cell($ops, $x + 236, 298, 236, 26, __('Odometer Reading:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $actual['departed_mileage'] ?? '');
-        $this->trip_sheet_log_cell($ops, $x, 272, 236, 26, __('Destination Arrival Time:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_time_display(($actual['arrived_time'] ?? '') ?: get_post_meta($trip_id, '_terricel_trip_arrival_time', true)));
+        $this->trip_sheet_log_cell($ops, $x, 272, 236, 26, __('Destination Arrival Time:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '');
         $this->trip_sheet_log_cell($ops, $x + 236, 272, 236, 26, __('Odometer Reading:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $actual['arrived_mileage'] ?? '');
-        $this->trip_sheet_log_cell($ops, $x, 246, 236, 26, __('Depart Time from Destination:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_time_display(($actual['returning_time'] ?? '') ?: get_post_meta($trip_id, '_terricel_trip_departure_time', true)));
+        $this->trip_sheet_log_cell($ops, $x, 246, 236, 26, __('Depart Time from Destination:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '');
         $this->trip_sheet_log_cell($ops, $x + 236, 246, 236, 26, __('Odometer Reading:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $actual['returning_mileage'] ?? '');
-        $this->trip_sheet_log_cell($ops, $x, 220, 236, 26, __('Arrival Time at School:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $this->format_time_display(($actual['post_trip_time'] ?? '') ?: get_post_meta($trip_id, '_terricel_trip_return_time', true)));
+        $this->trip_sheet_log_cell($ops, $x, 220, 236, 26, __('Arrival Time at School:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '');
         $this->trip_sheet_log_cell($ops, $x + 236, 220, 236, 26, __('Odometer Reading:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), $actual['post_trip_mileage'] ?? '');
 
         $this->trip_sheet_large_field($ops, $x, 150, $w, 36, __('Bus Driver Signature:', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN), '');
         $this->trip_sheet_check_row($ops, $x, 85, $w, __('WALK THROUGH THE BUS DIRECTLY AFTER DROPPING GROUP', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN));
         $this->trip_sheet_check_row($ops, $x, 45, $w, __('LOOK FOR ITEMS OR TRASH- IF ANY PLEASE PICK UP OR SWEEP', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN));
+        $this->pdf_text($ops, $x, 22, $this->get_trip_sheet_printed_footer(), 8, false);
 
         return $ops;
     }
@@ -1593,11 +1593,13 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         $ops .= 'BT ' . ($bold ? '/F2 ' : '/F1 ') . absint($size) . ' Tf ' . sprintf("%.2F %.2F Td ", $x, $y) . '(' . $this->escape_pdf_text($text) . ") Tj ET\n";
     }
 
-    private function trip_sheet_field(&$ops, $x, $y, $w, $h, $label, $value = '', $underline = false) {
+    private function trip_sheet_field(&$ops, $x, $y, $w, $h, $label, $value = '', $underline = false, $value_x_offset = null, $value_y_offset = null) {
         $this->pdf_rect($ops, $x, $y, $w, $h);
         $this->pdf_text($ops, $x + 6, $y + $h - 18, $label, 12, true);
         if ('' !== (string) $value) {
-            $this->pdf_text($ops, $x + min($w - 70, 112), $y + $h - 18, $value, 10, false);
+            $value_x = null === $value_x_offset ? min($w - 70, 112) : $value_x_offset;
+            $value_y = null === $value_y_offset ? $h - 18 : $value_y_offset;
+            $this->pdf_text($ops, $x + $value_x, $y + $value_y, $value, 10, false);
         } elseif ($underline) {
             $this->pdf_line($ops, $x + 110, $y + 10, $x + $w - 34, $y + 10);
         }
@@ -1666,6 +1668,48 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
 
         $number = get_post_meta($bus_id, '_terricel_bus_number', true);
         return $number ? $number : get_the_title($bus_id);
+    }
+
+    private function get_trip_sheet_leave_garage_time($trip_id) {
+        $pickup_date = get_post_meta($trip_id, '_terricel_trip_pickup_date', true);
+        $pickup_time = get_post_meta($trip_id, '_terricel_trip_pickup_time', true);
+        $pickup_address = trim((string) get_post_meta($trip_id, '_terricel_trip_pickup_address', true));
+        if (!$pickup_date || !$this->sanitize_time($pickup_time) || !$pickup_address) {
+            return '';
+        }
+
+        $garage_minutes = $this->get_google_one_way_minutes_between_addresses('126 Grand Avenue, Swanton, VT 05488', $pickup_address);
+        if ($garage_minutes < 1) {
+            return '';
+        }
+
+        $timestamp = strtotime($pickup_date . ' ' . $pickup_time);
+        if (!$timestamp) {
+            return '';
+        }
+
+        return date('h:i A', $timestamp - (($garage_minutes + 15) * MINUTE_IN_SECONDS));
+    }
+
+    private function get_trip_sheet_destination_label($trip_id) {
+        $name = trim((string) $this->get_trip_destination_label($trip_id));
+        $address = trim((string) get_post_meta($trip_id, '_terricel_trip_destination_address', true));
+        if ($name && $address && 0 !== strcasecmp($name, $address)) {
+            return $name . ' - ' . $address;
+        }
+
+        return $name ? $name : $address;
+    }
+
+    private function get_trip_sheet_printed_footer() {
+        $user = wp_get_current_user();
+        $name = $user && $user->exists() ? $user->display_name : __('Unknown user', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN);
+
+        return sprintf(
+            __('Form printed by %1$s on %2$s', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
+            $name,
+            date_i18n(get_option('date_format') . ' ' . get_option('time_format'), current_time('timestamp'))
+        );
     }
 
     private function get_trip_sheet_origin_label($school_id, $trip_id = 0) {
@@ -3114,6 +3158,48 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         }
 
         return $options;
+    }
+
+    private function get_google_one_way_minutes_between_addresses($origin, $destination) {
+        $api_key = get_option(Terricel_Transit_Trips_Plugin::OPTION_GOOGLE_API_KEY, '');
+        $origin = trim((string) $origin);
+        $destination = trim((string) $destination);
+        if (!$api_key || !$origin || !$destination) {
+            return 0;
+        }
+
+        $response = wp_remote_post(
+            add_query_arg(array('key' => $api_key), 'https://routes.googleapis.com/directions/v2:computeRoutes'),
+            array(
+                'timeout' => 8,
+                'headers' => array(
+                    'Content-Type' => 'application/json',
+                    'X-Goog-FieldMask' => 'routes.distanceMeters,routes.duration,routes.staticDuration',
+                ),
+                'body' => wp_json_encode(
+                    array(
+                        'origin' => array('address' => $origin),
+                        'destination' => array('address' => $destination),
+                        'travelMode' => 'DRIVE',
+                        'routingPreference' => 'TRAFFIC_AWARE_OPTIMAL',
+                        'departureTime' => gmdate('Y-m-d\TH:i:s\Z', time() + (5 * MINUTE_IN_SECONDS)),
+                        'trafficModel' => 'OPTIMISTIC',
+                    )
+                ),
+            )
+        );
+
+        if (is_wp_error($response) || wp_remote_retrieve_response_code($response) < 200 || wp_remote_retrieve_response_code($response) > 299) {
+            return 0;
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        $route = $this->get_fastest_google_route($body['routes'] ?? array());
+        if (empty($route)) {
+            return 0;
+        }
+
+        return (int) ceil($this->get_google_route_duration_seconds($route) / 60);
     }
 
     private function round_up_to_interval($value, $interval) {
