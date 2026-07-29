@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2 - 2026-07-29
+
+- Expanded Trip Billing into a searchable, filterable, sortable past-trip list with Non Invoiced, Invoiced, and Voided views.
+- Added billing actions for viewing invoice PDFs, emailing invoices, voiding invoices, and jumping to highlighted Trip Actuals when mileage needs updating.
+
 ## 0.3.1 - 2026-07-29
 
 - Fixed Trip edit updates being blocked by required fields inside hidden inline Add Group and Add Organization panels.
