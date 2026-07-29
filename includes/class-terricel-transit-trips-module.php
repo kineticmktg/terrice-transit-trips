@@ -1285,13 +1285,16 @@ class Terricel_Transit_Trips_Module extends Terricel_Logistics_Module {
         $pickup_time = get_post_meta($trip_id, '_terricel_trip_pickup_time', true);
         $return_time = get_post_meta($trip_id, '_terricel_trip_return_time', true);
         $group_id = absint(get_post_meta($trip_id, '_terricel_trip_group_id', true));
+        $school_label = $this->get_school_label((int) get_post_meta($trip_id, '_terricel_trip_school_id', true));
+        $destination_label = $this->get_trip_destination_label($trip_id);
 
         return array(
             'id'                 => $trip_id,
             'title'              => get_the_title($trip_id),
-            'school'             => $this->get_school_label((int) get_post_meta($trip_id, '_terricel_trip_school_id', true)),
+            'school'             => $school_label,
             'group'              => $group_id > 0 ? get_the_title($group_id) : '',
-            'destination'        => $this->get_trip_destination_label($trip_id),
+            'destination'        => $destination_label,
+            'trip_name'          => trim($school_label . ' | ' . $destination_label),
             'pickup_label'       => $pickup_time ? date_i18n(get_option('time_format'), strtotime($pickup_time)) : __('Pickup not set', TERRICEL_TRANSIT_TRIPS_TEXT_DOMAIN),
             'return_label'       => $return_time ? date_i18n(get_option('time_format'), strtotime($return_time)) : '',
             'sort_time'          => $pickup_time ? $this->sanitize_time($pickup_time) : '99:99',

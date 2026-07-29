@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.24 - 2026-07-29
+
+- Updated Trips Smart Monitor cards so the first line shows the pickup school and trip location in the format "MVU | Smuggler's Notch".
+
 ## 0.2.23 - 2026-07-27
 
 - Added an Add Any Driver toggle to trip assignment driver selectors so trip coordinators can reveal drivers outside normal trip-date availability while preserving route-conflict confirmation.
