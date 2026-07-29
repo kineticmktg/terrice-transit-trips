@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.25 - 2026-07-29
+
+- Added Trips Organizations for non-school billing entities, quick Organization creation on Trip edit screens, and Manage Organizations access from the Trips list.
+- Renamed visible Trip Details terminology from School/School Group/Advisor to Organization/Group/Primary Contact and noted that organizations receive group activity bills.
+- Hid the inline Add Group form when a group is selected from the dropdown, removed the generated trip title "Trip" prefix, and cancel school-based trips with driver notifications when the selected school is closed for the trip date.
+
 ## 0.2.24 - 2026-07-29
 
 - Updated Trips Smart Monitor cards so the first line shows the pickup school and trip location in the format "MVU | Smuggler's Notch".
