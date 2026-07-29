@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.5 - 2026-07-29
+
+- Added automatic stored invoice PDF generation for completed mileage-ready trips and automatic replacement/versioning when completed trips are edited.
+- Renamed the billing invoice column to Download Invoice and linked the current PDF as View Invoice # with invoice version and modified date included in the PDF.
+- Added explicit ascending and descending sort arrows for Trip and Pickup columns in Trip Billing.
+
 ## 0.3.4 - 2026-07-29
 
 - Updated Trip Billing actions to show View Invoice, Email Invoice, and Cancel Invoice for mileage-ready trips.
