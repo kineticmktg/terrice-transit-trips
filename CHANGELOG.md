@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.7 - 2026-07-29
+
+- Added an editable Pickup Location step before Destination & Estimates, auto-filled from the selected organization address when available.
+- Updated destination estimates, maps links, and trip sheets to use the trip pickup address as the route origin.
+
 ## 0.3.6 - 2026-07-29
 
 - Added an on-demand Trip Sheet download column to the Trips list with one PDF page per bus needed, prefilled from trip, assignment, group contact, and actuals data.
